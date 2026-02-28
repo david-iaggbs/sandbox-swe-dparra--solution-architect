@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn *)",
+      "Bash(npm *)",
+      "Bash(docker *)",
+      "Bash(docker exec:*)",
+      "Bash(aws *)",
+      "Bash(cdk *)",
+      "Bash(export AWS_PROFILE=sandbox-swe-dparra-admin)"
+    ]
+  },
+  "effortLevel": "medium"
+}
