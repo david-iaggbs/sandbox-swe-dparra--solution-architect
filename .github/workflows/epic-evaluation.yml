@@ -96,6 +96,15 @@ jobs:
             "[ADR] <decision title>" and a pre-filled body following adr/template.md.
             Do NOT write the ADR file itself — only open the issue so it can be reviewed first.
 
+            **Idempotency guard — run this BEFORE creating any ADR issue:**
+            ```
+            gh issue list --repo david-iaggbs/sandbox-swe-dparra--solution-architect \
+              --label adr --state all --json number,title,url
+            ```
+            If an ADR issue with the same or very similar title already exists (open OR closed),
+            do NOT create a duplicate — reference the existing issue URL in the summary instead.
+            Only call `gh issue create` if no matching ADR title is found.
+
             If no ADR is needed, state "ADR: not required" in the summary.
 
             ---
