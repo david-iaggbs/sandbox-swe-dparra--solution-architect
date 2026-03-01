@@ -1,0 +1,178 @@
+name: ADR Management
+
+# Fires automatically when the 'adr' label is applied to an issue.
+# Using 'labeled' ensures exactly one execution per ADR issue,
+# even when the label is set at creation time.
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  manage:
+    name: Execute ADR decisions and close originating epic
+    if: github.event.label.name == 'adr'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run ADR Management
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # GH_TOKEN must be a PAT with repo scope across the david-iaggbs org
+          # so Claude can scaffold repos, close issues, and commit ADR files.
+          github_token: ${{ secrets.GH_TOKEN }}
+          prompt: |
+            An issue has just been labeled as an ADR in this repository.
+
+            Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+            URL: ${{ github.event.issue.html_url }}
+
+            Execute the full ADR Management Process below.
+            Execute every step automatically — do not wait for confirmation.
+            If any step fails, post a failure comment on this issue and stop immediately.
+            Do NOT close the originating epic if any execution step fails.
+
+            ---
+
+            ## Step 1 — Parse the ADR issue
+
+            Read the issue body in full.
+            Extract the following fields from the metadata table and body sections:
+            - **Originating Epic URL** — from the `| **Originating Epic** |` row
+            - **Categories** — from the `| **Categories** |` row
+            - **Decision** — the "We will..." statement from the `## Decision` section
+            - **Follow-up actions** — the checklist items under `## Consequences` → `**Follow-up actions:**`
+
+            Also read:
+            - `adr/README.md` — for ADR numbering conventions and the index format
+            - `adr/template.md` — for the canonical ADR file structure
+            - `README.md` — for the Product Registry (Registered Products table) and naming conventions
+
+            ---
+
+            ## Step 2 — Execute decisions
+
+            Based on the `Categories` and `Follow-up actions`, execute the required actions.
+            For each action, run the appropriate command and document the result.
+
+            Category mapping:
+            - `product` — scaffold a new design repo: `/scaffold-design scaffold <product-name>`
+              and register the product in README.md if not already listed
+            - `infra` — scaffold infrastructure: `/scaffold-infra <product-name>`
+            - `service` — scaffold microservice: `/scaffold-microservice <spec>`
+            - `ui` — scaffold web UI: `/scaffold-webui <spec>`
+            - `org`, `initiative`, `data`, `integration`, `security` — update templates,
+              documentation, or README.md as described in the Follow-up actions
+
+            Always check whether a repo or product already exists before scaffolding:
+            ```
+            gh repo view david-iaggbs/<repo-name> 2>&1
+            ```
+
+            ---
+
+            ## Step 3 — Validate execution
+
+            For every action executed in Step 2, verify it completed successfully:
+            - For scaffolded repos: confirm with `gh repo view david-iaggbs/<repo>`
+            - For README.md product registrations: confirm the row exists in the file
+            - For issue creation: confirm the issue URL is reachable
+
+            If ANY validation fails:
+            1. Post a comment on this ADR issue:
+               `## ❌ ADR Execution Failed\n\nStep: <description>\nError: <details>\n\nThe originating epic will NOT be closed until all actions are validated.`
+            2. Stop — do not proceed to Steps 4–7
+
+            ---
+
+            ## Step 4 — Formalize the ADR file
+
+            Determine the next ADR number by listing existing ADR files:
+            ```
+            gh api repos/david-iaggbs/sandbox-swe-dparra--solution-architect/contents/adr \
+              --jq '[.[] | select(.name | test("^[0-9]{4}")) | .name] | sort | last // "0000"'
+            ```
+            Increment by 1 and zero-pad to 4 digits (e.g., `0001`).
+
+            Create the file `adr/NNNN-<kebab-case-title>.md` using `adr/template.md` as the base.
+            Populate all fields from the issue body. Set `| **Status** | Accepted |`.
+
+            Then update the ADR index table in `adr/README.md`:
+            Add a new row: `| [ADR-NNNN](NNNN-<slug>.md) | <Title> | Accepted | <Categories> | <Date> |`
+
+            Commit both files directly to `main`:
+            - Use `git config user.name "github-actions[bot]"` and `git config user.email "github-actions[bot]@users.noreply.github.com"`
+            - Commit message: `docs(adr): accept NNNN — <title>`
+
+            ---
+
+            ## Step 5 — Link epic to ADR
+
+            Using the **Originating Epic URL** extracted in Step 1, post a comment on that epic issue:
+
+            ```
+            ## ADR Accepted — ADR-NNNN: <title>
+
+            The architectural decision for this epic has been formalized and all actions executed.
+
+            **ADR file:** `adr/NNNN-<slug>.md`
+            **Decision:** <decision statement>
+
+            **Actions executed:**
+            - <action 1 with result URL>
+            - <action 2 with result URL>
+            - ...
+
+            This epic will be closed as all work has been delegated to component repos and the ADR has been accepted.
+            ```
+
+            ---
+
+            ## Step 6 — Close the originating epic(s)
+
+            Extract the epic issue number from the Originating Epic URL.
+            Close the epic with a reason comment:
+            ```
+            gh issue close <epic-number> \
+              --repo david-iaggbs/sandbox-swe-dparra--solution-architect \
+              --comment "Closed: ADR-NNNN accepted and all decisions executed. See adr/NNNN-<slug>.md."
+            ```
+
+            ---
+
+            ## Step 7 — Close this ADR issue
+
+            Post a final summary comment on this issue (#${{ github.event.issue.number }}):
+
+            ```
+            ## ✅ ADR Management Complete
+
+            **ADR file:** `adr/NNNN-<slug>.md` (Status: Accepted)
+            **Originating epic:** <url> — closed
+            **Actions executed:** <count> action(s) completed and validated
+
+            | Action | Result |
+            |--------|--------|
+            | <action> | <url or "done"> |
+            ```
+
+            Then close this issue:
+            ```
+            gh issue close ${{ github.event.issue.number }} \
+              --repo david-iaggbs/sandbox-swe-dparra--solution-architect \
+              --comment "ADR formalized as adr/NNNN-<slug>.md. Originating epic closed."
+            ```
+
+          additional_permissions: |
+            actions: read

@@ -9,6 +9,7 @@
 | **Jira** | [ITL-XXXX](https://jira.example.com/browse/ITL-XXXX) |
 | **Supersedes** | — |
 | **Superseded by** | — |
+| **Originating Epic** | — |
 
 ---
 

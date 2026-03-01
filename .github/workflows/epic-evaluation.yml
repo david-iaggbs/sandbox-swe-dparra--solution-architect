@@ -105,6 +105,15 @@ jobs:
             do NOT create a duplicate — reference the existing issue URL in the summary instead.
             Only call `gh issue create` if no matching ADR title is found.
 
+            **Required fields in the ADR issue body:**
+            - The metadata table MUST include the row:
+              `| **Originating Epic** | ${{ github.event.issue.html_url }} |`
+            - Fill all other template fields from `adr/template.md`
+            - Set `Status` to `Proposed`
+
+            **Label the ADR issue with `adr`:**
+            Pass `--label adr` to `gh issue create`.
+
             If no ADR is needed, state "ADR: not required" in the summary.
 
             ---
