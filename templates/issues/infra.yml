@@ -1,0 +1,124 @@
+name: Infrastructure Change
+description: Create, modify, or remove shared AWS infrastructure managed via CDK.
+title: "[INFRA] "
+labels: ["infrastructure", "cdk"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for any change to shared infrastructure in this product's CDK stack.
+        All infrastructure changes must be reviewed before deployment.
+
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: Change Type
+      description: What kind of infrastructure change is this?
+      options:
+        - New resource
+        - Modify existing resource
+        - Remove resource
+        - Security / IAM update
+        - Cost optimisation
+    validations:
+      required: true
+
+  - type: input
+    id: epic
+    attributes:
+      label: Originating Epic
+      description: Link to the epic issue in sandbox-swe-dparra--solution-architect that triggered this change.
+      placeholder: "https://github.com/david-iaggbs/sandbox-swe-dparra--solution-architect/issues/NN"
+    validations:
+      required: true
+
+  - type: input
+    id: initiative
+    attributes:
+      label: Initiative
+      description: Name of the GitHub Project (initiative) this work belongs to.
+      placeholder: "e.g., Booking Self-Service Portal"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why does this infrastructure change need to happen? What component or feature requires it?
+      placeholder: |
+        e.g., The ReservationCancelled event needs an EventBridge rule that routes it to
+        the notification-service SQS queue. This rule does not yet exist on the shared bus.
+    validations:
+      required: true
+
+  - type: textarea
+    id: resources
+    attributes:
+      label: AWS Resources
+      description: List every AWS resource to be created, modified, or deleted. Include resource type, logical name, and key configuration.
+      placeholder: |
+        **New:**
+        - EventBridge Rule `ReservationCancelledToNotificationQueue`
+          - Bus: default
+          - Pattern: `{ "detail-type": ["ReservationCancelled"] }`
+          - Target: SQS `notification-service-reservation-cancelled-queue`
+
+        **Modified:**
+        - SQS Queue `notification-service-reservation-cancelled-queue`
+          - Add DLQ: `notification-service-reservation-cancelled-dlq` (maxReceiveCount: 3)
+
+        **Unchanged / for reference:**
+        - EventBridge Bus: default (shared, already exists)
+    validations:
+      required: true
+
+  - type: input
+    id: cdk_stack
+    attributes:
+      label: CDK Stack
+      description: Name of the CDK Stack class that owns these resources.
+      placeholder: "e.g., BookingInfraStack"
+    validations:
+      required: true
+
+  - type: textarea
+    id: iam
+    attributes:
+      label: IAM & Security
+      description: |
+        Describe the IAM permissions required. Follow least-privilege — list only resource-specific ARNs.
+        Include Security Group changes if applicable.
+      placeholder: |
+        - notification-service task role: add `sqs:ReceiveMessage`, `sqs:DeleteMessage`
+          on `arn:aws:sqs:{region}:{account}:notification-service-reservation-cancelled-queue`
+        - EventBridge rule execution role: add `sqs:SendMessage`
+          on the same queue ARN
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Verifiable conditions that must be true for this change to be considered complete.
+      placeholder: |
+        - [ ] `cdk diff` shows only the expected resources — no unintended changes
+        - [ ] CDK unit tests pass and assert the new/modified resources
+        - [ ] No wildcard ARNs in any IAM statement
+        - [ ] Successfully deployed to sandbox environment
+        - [ ] End-to-end test: event published to bus reaches the target queue
+    validations:
+      required: true
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Links to related issues, design specs, or ADRs.
+      placeholder: |
+        - Epic: https://github.com/david-iaggbs/sandbox-swe-dparra--solution-architect/issues/NN
+        - Design spec: {product}--design#NN (event contract)
+        - Depends on: #NN (another infra change that must deploy first)
+    validations:
+      required: false

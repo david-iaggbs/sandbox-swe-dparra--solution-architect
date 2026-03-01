@@ -1,0 +1,120 @@
+name: Technical Specification
+description: Define or update an architectural specification — endpoint, event contract, UI design, data model, or API contract.
+title: "[SPEC] "
+labels: ["specification"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to capture a technical specification that must be reviewed and approved before implementation begins.
+        Specifications in this repo are the source of truth for all component teams.
+
+  - type: dropdown
+    id: spec_type
+    attributes:
+      label: Specification Type
+      description: What kind of specification is this?
+      options:
+        - Endpoint spec
+        - Event contract
+        - UI design
+        - Data model
+        - API contract
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: epic
+    attributes:
+      label: Originating Epic
+      description: Link to the epic issue in sandbox-swe-dparra--solution-architect that triggered this specification.
+      placeholder: "https://github.com/david-iaggbs/sandbox-swe-dparra--solution-architect/issues/NN"
+    validations:
+      required: true
+
+  - type: input
+    id: initiative
+    attributes:
+      label: Initiative
+      description: Name of the GitHub Project (initiative) this work belongs to.
+      placeholder: "e.g., Booking Self-Service Portal"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why does this specification need to exist? What business need drives it?
+      placeholder: |
+        e.g., The booking cancellation epic requires a new DELETE endpoint on the reservation service.
+        Guests need to cancel reservations up to 24 hours before the slot.
+    validations:
+      required: true
+
+  - type: textarea
+    id: specification
+    attributes:
+      label: Technical Specification
+      description: |
+        The full specification. Use the sub-sections relevant to your spec type:
+
+        **Endpoint spec:** HTTP method, path, request body, response body, status codes, validation rules, auth requirements.
+        **Event contract:** detail-type, source, bus name, payload schema (JSON), consumer(s), SQS queue name, DLQ policy.
+        **UI design:** page routes, component hierarchy, user interactions, data fetched, BFF routes consumed.
+        **Data model:** entity name, fields with types and constraints, indexes, relationships, migration notes.
+        **API contract:** OpenAPI-style summary of request/response with examples.
+      placeholder: |
+        ### Endpoint
+
+        `DELETE /api/v1/reservations/{id}`
+
+        **Auth:** Bearer token required
+        **Path params:** `id` (UUID)
+        **Response 204:** No content — reservation cancelled
+        **Response 404:** `{ "error": "Reservation not found" }`
+        **Response 409:** `{ "error": "Cancellation window has passed" }`
+
+        ### Business rules
+        - Cancellation only allowed up to 24h before the slot start time
+        - On success, publish `ReservationCancelled` event to EventBridge
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints & Non-Functional Requirements
+      description: Performance, security, compliance, or compatibility constraints that the implementation must respect.
+      placeholder: |
+        - Response time < 200ms (p99)
+        - Must be idempotent (safe to call twice)
+        - GDPR: no PII in event payload
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Verifiable conditions that must be true for this specification to be considered complete and approved.
+      placeholder: |
+        - [ ] Specification reviewed and approved by at least one backend and one frontend engineer
+        - [ ] Event payload schema validated against all known consumers
+        - [ ] No open questions remaining
+        - [ ] Linked ADR created if a significant architectural decision was made
+    validations:
+      required: true
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Links to related issues, ADRs, or documents.
+      placeholder: |
+        - Epic: https://github.com/david-iaggbs/sandbox-swe-dparra--solution-architect/issues/NN
+        - ADR: adr/NNNN-...md (if applicable)
+        - Depends on: #NN (other spec in this repo)
+    validations:
+      required: false

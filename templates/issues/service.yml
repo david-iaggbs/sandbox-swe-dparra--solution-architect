@@ -1,0 +1,159 @@
+name: Service Task
+description: Implement a change in this Spring Boot microservice — new endpoint, event producer/consumer, entity, or configuration.
+title: "[SERVICE] "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for any implementation task in this microservice.
+        Every task must reference an approved design specification before implementation begins.
+
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: Change Type
+      description: What kind of change is this?
+      options:
+        - New endpoint
+        - Modify endpoint
+        - New event producer
+        - New event consumer
+        - New entity
+        - Modify entity
+        - New service / repository layer
+        - Configuration change
+        - Dependency update
+    validations:
+      required: true
+
+  - type: input
+    id: epic
+    attributes:
+      label: Originating Epic
+      description: Link to the epic issue in sandbox-swe-dparra--solution-architect.
+      placeholder: "https://github.com/david-iaggbs/sandbox-swe-dparra--solution-architect/issues/NN"
+    validations:
+      required: true
+
+  - type: input
+    id: initiative
+    attributes:
+      label: Initiative
+      description: Name of the GitHub Project (initiative) this work belongs to.
+      placeholder: "e.g., Booking Self-Service Portal"
+    validations:
+      required: true
+
+  - type: input
+    id: design_spec
+    attributes:
+      label: Design Specification
+      description: Link to the approved spec issue in the product's design repo. Implementation must not start without an approved spec.
+      placeholder: "https://github.com/david-iaggbs/{product}--design/issues/NN"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What business need does this task address? Why is it needed now?
+      placeholder: |
+        e.g., Guests need to cancel reservations online. This task adds the DELETE endpoint
+        to reservation-service and publishes the ReservationCancelled event as defined in
+        the approved spec ({product}--design#14).
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical_spec
+    attributes:
+      label: Technical Specification
+      description: |
+        Detail the implementation required. Fill in only the sections relevant to your change type.
+
+        **Endpoint:** HTTP method + path, request/response DTOs, validation, HTTP status codes, OpenAPI annotations.
+        **Event producer:** detail-type, payload, when it is published, EventBridge bus name.
+        **Event consumer:** source service, queue name, `@SqsListener` handler logic, idempotency strategy.
+        **Entity:** fields, types, JPA annotations, Flyway migration, repository methods.
+      placeholder: |
+        ### Endpoint
+
+        `DELETE /api/v1/reservations/{id}`
+        - Controller: `ReservationRestController`
+        - Returns 204 on success, 404 if not found, 409 if cancellation window has passed
+        - Delegates to `ReservationService.cancel(UUID id)`
+        - OpenAPI: `@Operation(summary = "Cancel a reservation")`
+
+        ### Event producer
+
+        On successful cancellation, publish via EventBridge:
+        - detail-type: `"ReservationCancelled"`
+        - Bus: `default`
+        - Payload: `{ "reservationId": "uuid", "slotId": "uuid", "cancelledAt": "ISO-8601" }`
+    validations:
+      required: true
+
+  - type: textarea
+    id: layers
+    attributes:
+      label: Impacted Layers
+      description: Which layers of the application are affected? Check all that apply and describe the change briefly.
+      placeholder: |
+        - [x] Controller — new DELETE method in ReservationRestController
+        - [x] Service — cancel() method + ReservationCancelledException
+        - [x] Repository — findByIdAndStatus() query
+        - [ ] Entity — no entity changes
+        - [ ] Config — no config changes
+        - [ ] CDK — infra change tracked separately in {product}--infra#NN
+    validations:
+      required: true
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test Requirements
+      description: What tests must be written or updated? Follow BDD style (given/when/then) with AssertJ.
+      placeholder: |
+        **Unit tests (ReservationRestControllerUnitTest):**
+        - Given valid id → returns 204
+        - Given unknown id → returns 404 with error body
+        - Given id past cancellation window → returns 409 with error body
+
+        **Integration tests (ReservationRestControllerIntegrationTest):**
+        - Full flow via MockMvc against real PostgreSQL (Testcontainers)
+        - Verifies ReservationCancelled event published to LocalStack EventBridge
+
+        **Repository tests (ReservationRepositoryIntegrationTest):**
+        - findByIdAndStatus() returns empty when status is CANCELLED
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Verifiable conditions that must be true before this issue is closed.
+      placeholder: |
+        - [ ] All new and existing tests pass (`mvn test`)
+        - [ ] OpenAPI spec updated and matches design spec
+        - [ ] No `@Autowired` — constructor injection only
+        - [ ] Every service method annotated with `@Transactional`
+        - [ ] Event payload matches the approved contract in {product}--design#NN
+        - [ ] Code reviewed and approved
+    validations:
+      required: true
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Links to related issues across component repos.
+      placeholder: |
+        - Epic: https://github.com/david-iaggbs/sandbox-swe-dparra--solution-architect/issues/NN
+        - Design spec: {product}--design#NN
+        - Infra change (EventBridge rule): {product}--infra#NN
+        - UI task (cancellation page): {product}--{ui}--ui#NN
+    validations:
+      required: false

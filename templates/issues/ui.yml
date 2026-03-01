@@ -1,0 +1,191 @@
+name: UI Task
+description: Implement a change in this Astro SSR web UI — new page, BFF route, component, library, or configuration.
+title: "[UI] "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for any implementation task in this web UI.
+        Every task must reference an approved design specification before implementation begins.
+        All backend communication must go through BFF API routes — never direct from the browser.
+
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: Change Type
+      description: What kind of change is this?
+      options:
+        - New page
+        - Modify page
+        - New BFF route
+        - Modify BFF route
+        - New component
+        - New library utility
+        - SSM configuration change
+        - CDK change
+        - Dependency update
+    validations:
+      required: true
+
+  - type: input
+    id: epic
+    attributes:
+      label: Originating Epic
+      description: Link to the epic issue in sandbox-swe-dparra--solution-architect.
+      placeholder: "https://github.com/david-iaggbs/sandbox-swe-dparra--solution-architect/issues/NN"
+    validations:
+      required: true
+
+  - type: input
+    id: initiative
+    attributes:
+      label: Initiative
+      description: Name of the GitHub Project (initiative) this work belongs to.
+      placeholder: "e.g., Booking Self-Service Portal"
+    validations:
+      required: true
+
+  - type: input
+    id: design_spec
+    attributes:
+      label: Design Specification
+      description: Link to the approved UI design spec in the product's design repo. Implementation must not start without an approved spec.
+      placeholder: "https://github.com/david-iaggbs/{product}--design/issues/NN"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What business need does this task address? What user interaction is being enabled?
+      placeholder: |
+        e.g., Guests need a cancellation page where they can review their reservation details
+        and confirm cancellation. This page calls the BFF cancellation route, which proxies
+        to reservation-service DELETE /api/v1/reservations/{id}.
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical_spec
+    attributes:
+      label: Technical Specification
+      description: |
+        Detail the implementation required. Fill in only the sections relevant to your change type.
+
+        **Page:** route path, server-side data fetching, HTML structure, client-side interactions, scoped CSS.
+        **BFF route:** route path, HTTP method, target backend service URL (from SSM), request forwarding, error handling (502 on failure).
+        **Component:** props interface, rendering logic, client-side script.
+        **SSM config:** parameter path, default value, which `config.ts` function loads it.
+      placeholder: |
+        ### Page
+
+        Route: `/reservations/:id/cancel`
+        - Server-side: fetch reservation details via `GET /api/reservations/:id`
+        - Render reservation summary (date, slot, guest name)
+        - "Confirm cancellation" button triggers `DELETE /api/reservations/:id`
+        - On 204: redirect to `/reservations` with success toast
+        - On 409: display "Cancellation window has passed" inline error
+        - On 404: redirect to `/404`
+
+        ### BFF route
+
+        `DELETE /api/reservations/[id].ts`
+        - Reads backend URL from SSM via `getApiBackendUrl()`
+        - Proxies to `DELETE {backendUrl}/api/v1/reservations/{id}`
+        - Returns 204 with null body on success
+        - Returns 502 `{ message: "Service temporarily unavailable" }` on network failure
+        - Forwards 404 and 409 status and body from backend unchanged
+    validations:
+      required: true
+
+  - type: textarea
+    id: backend_dependencies
+    attributes:
+      label: Backend Dependencies
+      description: Which backend services and endpoints does this task depend on? Include the service repo and the specific API contract.
+      placeholder: |
+        | Service | Endpoint | Contract |
+        |---------|----------|---------|
+        | reservation-service | `GET /api/v1/reservations/{id}` | {product}--design#NN |
+        | reservation-service | `DELETE /api/v1/reservations/{id}` | {product}--design#NN |
+    validations:
+      required: true
+
+  - type: textarea
+    id: ssm_params
+    attributes:
+      label: SSM Configuration Parameters
+      description: List any new SSM parameters needed. Include the parameter path and the `config.ts` function that loads it.
+      placeholder: |
+        | Parameter path | Default value | config.ts function |
+        |---------------|--------------|-------------------|
+        | /{service}/api.cancellation.window.hours | 24 | `getCancellationWindowHours()` |
+      value: "N/A — no new SSM parameters required"
+    validations:
+      required: true
+
+  - type: textarea
+    id: layers
+    attributes:
+      label: Impacted Layers
+      description: Which layers of the application are affected?
+      placeholder: |
+        - [x] Page — src/pages/reservations/[id]/cancel.astro (new)
+        - [x] BFF route — src/pages/api/reservations/[id].ts (add DELETE handler)
+        - [ ] Layout — no layout changes
+        - [ ] Component — no new components
+        - [ ] lib/config.ts — no new SSM parameters
+        - [ ] lib/fetchWithRetry.ts — no changes
+        - [ ] CDK — no CDK changes
+    validations:
+      required: true
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test Requirements
+      description: What tests must be written or updated? Co-locate tests using `*UnitTest.ts` / `*IntegrationTest.ts` naming.
+      placeholder: |
+        **BFF route unit tests (src/pages/api/reservations/idUnitTest.ts):**
+        - DELETE: given valid id → proxies to backend, returns 204 with null body
+        - DELETE: given 404 from backend → forwards 404 and error body
+        - DELETE: given 409 from backend → forwards 409 and error body
+        - DELETE: given network failure → returns 502 with "Service temporarily unavailable"
+
+        **BFF route integration tests (src/pages/api/reservations/integrationTest.ts):**
+        - Full DELETE flow against a real backend stub (msw or localstack-backed service)
+
+        **Page:** no automated test required — covered by BFF and backend tests
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Verifiable conditions that must be true before this issue is closed.
+      placeholder: |
+        - [ ] All new and existing tests pass (`npm test`)
+        - [ ] App builds without errors (`npm run build`)
+        - [ ] All backend calls go through BFF routes — no direct browser-to-backend calls
+        - [ ] 502 returned on any backend network failure (fetchWithRetry exhausted)
+        - [ ] SSM parameter fallback works when LocalStack is unavailable
+        - [ ] TypeScript strict mode — no `any` types
+        - [ ] Code reviewed and approved
+    validations:
+      required: true
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Links to related issues across component repos.
+      placeholder: |
+        - Epic: https://github.com/david-iaggbs/sandbox-swe-dparra--solution-architect/issues/NN
+        - Design spec: {product}--design#NN
+        - Backend task (DELETE endpoint): {product}--{service}--service#NN
+        - Infra task (if CDK changes needed): {product}--infra#NN
+    validations:
+      required: false

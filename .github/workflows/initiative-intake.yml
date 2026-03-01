@@ -1,0 +1,102 @@
+name: Initiative Intake
+
+# Fires automatically when a GitHub Project is created in the david-iaggbs organization.
+# Evaluates the new initiative against the product registry and produces a structured
+# intake issue in this repository for the solution architect.
+on:
+  projects_v2:
+    types: [created]
+
+jobs:
+  evaluate:
+    name: Evaluate new initiative against product registry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # to commit ADR files if needed
+      issues: write     # to open the intake issue in this repo
+      pull-requests: write
+      projects: read    # to read project details
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Initiative Evaluation
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GH_TOKEN }}
+          prompt: |
+            A new GitHub Project (initiative) has just been created in the david-iaggbs organization.
+
+            Project title: "${{ github.event.projects_v2.title }}"
+            Project node ID: ${{ github.event.projects_v2.node_id }}
+            Created by: ${{ github.event.sender.login }}
+            Created at: ${{ github.event.projects_v2.created_at }}
+
+            Perform the Initiative Evaluation Process defined in README.md.
+            Execute every step automatically — do not wait for confirmation.
+
+            ---
+
+            ## Step 1 — Domain Fit
+
+            Read the Product Registry table in README.md.
+            Analyze the initiative title and (if available) its description to understand its business domain.
+
+            - If it fits within one or more existing products: list which products are involved.
+            - If it requires a new product: propose the product name and the three repo names
+              following the naming convention:
+                - `sandbox-swe-dparra--{product}--infra`
+                - `sandbox-swe-dparra--{product}--design`
+                - `sandbox-swe-dparra--{product}--{first-service}--service`
+
+            ---
+
+            ## Step 2 — Product Impact
+
+            For each affected product, identify which component repos will be involved:
+            - --design: likely always involved (specs must be written before implementation)
+            - --infra: involved if new shared resources are needed
+            - --service: list each service likely to be extended or created
+            - --ui: list each UI likely to be extended or created
+
+            ---
+
+            ## Step 3 — ADR
+
+            If this initiative introduces a new product boundary or a new cross-cutting
+            architectural pattern that does not yet have an ADR, determine the next available
+            ADR number by listing files in the adr/ directory, then open an issue in THIS
+            repository (david-iaggbs/sandbox-swe-dparra--solution-architect) with:
+            - Title: "[ADR] <decision title>"
+            - Body: pre-filled following adr/template.md, with Status: Proposed
+
+            Do NOT commit the ADR file — open the issue only so it can be reviewed first.
+
+            If no ADR is warranted, state "ADR: not required".
+
+            ---
+
+            ## Step 4 — Intake Issue
+
+            Create an issue in THIS repository
+            (david-iaggbs/sandbox-swe-dparra--solution-architect) with:
+
+            Title: "[INITIATIVE] ${{ github.event.projects_v2.title }}"
+            Labels: initiative
+
+            Body must include:
+            - **Initiative**: "${{ github.event.projects_v2.title }}" — link to the GitHub Project
+            - **Domain fit**: existing products involved (with repo links) OR proposed new product names
+            - **Component repos in scope**: table of repo | role (design / infra / service / ui)
+            - **ADR**: link to the ADR issue if created, or "not required"
+            - **Recommended next steps**: ordered list of actions for the solution architect,
+              e.g. approve ADR, register new product in README, create first epics in product-owner repo
+
+          additional_permissions: |
+            actions: read

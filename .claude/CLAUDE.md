@@ -62,6 +62,58 @@ Default Jira task when unspecified: **ITL-5671**
 - Epic: ITL-5673
 - Task: ITL-5671
 
+## Epic Evaluation — Issue Creation Rules
+
+When evaluating an epic, Claude must create issues in component repos using `gh issue create`. The body of every issue must follow the corresponding template in `templates/issues/`:
+
+| Component repo | Template | Label |
+|----------------|----------|-------|
+| `{product}--design` | `templates/issues/design.yml` | `specification` |
+| `{product}--infra` | `templates/issues/infra.yml` | `infrastructure`, `cdk` |
+| `{product}--{service}--service` | `templates/issues/service.yml` | `task` |
+| `{product}--{ui}--ui` | `templates/issues/ui.yml` | `task` |
+
+### Required fields in every created issue
+
+Every issue must populate — at minimum — these fields from the template:
+- **Originating Epic**: full URL to the epic issue in this repo
+- **Initiative**: name of the GitHub Project
+- **Context**: why the change is needed, derived from the epic description
+- **Technical Specification**: concrete implementation detail — never left vague
+- **Acceptance Criteria**: at least 3 verifiable, checkable conditions
+
+### gh issue create command pattern
+
+```bash
+gh issue create \
+  --repo "david-iaggbs/{target-repo}" \
+  --title "[SPEC|INFRA|SERVICE|UI] <concise imperative title>" \
+  --label "<label>" \
+  --body "$(cat <<'EOF'
+## Originating Epic
+<url>
+
+## Initiative
+<name>
+
+## Context
+<why>
+
+## Technical Specification
+<spec>
+
+## Acceptance Criteria
+- [ ] ...
+- [ ] ...
+
+## Related
+- Epic: <url>
+EOF
+)"
+```
+
+After creating all issues, post a summary comment on the epic issue listing every created issue with its URL and type.
+
 ## Available Skills
 
 | Skill | Invocation | Purpose |

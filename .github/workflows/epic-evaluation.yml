@@ -1,0 +1,112 @@
+name: Epic Evaluation
+
+# Fires automatically when the 'epic' label is applied to an issue.
+# Using 'labeled' (not 'opened') ensures exactly one evaluation per epic,
+# even when the label is set at creation time.
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  evaluate:
+    name: Evaluate epic and delegate to component repos
+    if: github.event.label.name == 'epic'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Epic Evaluation
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # GH_TOKEN must be a PAT with repo scope across the david-iaggbs org
+          # so Claude can create issues in component repos (--design, --infra, --service, --ui).
+          github_token: ${{ secrets.GH_TOKEN }}
+          prompt: |
+            An issue has just been labeled as an epic in this repository.
+
+            Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+            URL: ${{ github.event.issue.html_url }}
+
+            Perform the full Epic Evaluation Process defined in README.md.
+            Execute every step automatically — do not wait for confirmation.
+
+            ---
+
+            ## Step 1 — Initiative Mapping
+
+            Run `gh project list --owner david-iaggbs` to list active GitHub Projects (initiatives).
+            Read the epic title and body to understand its objective.
+            Match the objective against each project's description and title.
+
+            - If it maps to an existing initiative: assign this issue to that project using
+              `gh project item-add <project-number> --owner david-iaggbs --url ${{ github.event.issue.html_url }}`
+            - If no initiative fits: note this clearly in the final summary comment.
+
+            ---
+
+            ## Step 2 — Product Impact
+
+            Read the Product Registry in README.md.
+            Identify every product (row in the Registered Products table) whose --design,
+            --infra, --service, or --ui repos will need changes to implement this epic.
+            If the epic introduces a new domain not covered by any registered product,
+            flag that a new product must be registered first.
+
+            ---
+
+            ## Step 3 — Component Issue Creation
+
+            For every architectural change required, create an issue in the corresponding
+            component repository using `gh issue create`. Follow the rules in .claude/CLAUDE.md:
+
+            - design repo  → use templates/issues/design.yml structure, label: specification
+            - infra repo   → use templates/issues/infra.yml structure,  labels: infrastructure, cdk
+            - service repo → use templates/issues/service.yml structure, label: task
+            - ui repo      → use templates/issues/ui.yml structure,      label: task
+
+            Every issue body must include:
+            - Originating Epic: ${{ github.event.issue.html_url }}
+            - Initiative: (name from Step 1)
+            - Context: derived from the epic description
+            - Technical Specification: concrete and specific — never vague
+            - Acceptance Criteria: at least 3 verifiable, checkable conditions
+            - Related: link back to this epic
+
+            ---
+
+            ## Step 4 — ADR Check
+
+            If this epic introduces a new product boundary or a new cross-cutting architectural
+            pattern, create a new ADR issue in THIS repository
+            (david-iaggbs/sandbox-swe-dparra--solution-architect) with the title
+            "[ADR] <decision title>" and a pre-filled body following adr/template.md.
+            Do NOT write the ADR file itself — only open the issue so it can be reviewed first.
+
+            If no ADR is needed, state "ADR: not required" in the summary.
+
+            ---
+
+            ## Step 5 — Summary Comment
+
+            Post a comment on issue #${{ github.event.issue.number }} containing:
+
+            1. **Initiative** — which GitHub Project this epic was assigned to (or "no matching initiative found")
+            2. **Affected products** — list of product names with links to their repos
+            3. **Issues created** — a markdown table with columns: Repo | Issue # and title | Type
+            4. **ADR** — link to the ADR issue, or "not required"
+
+            The comment is the only output in this repo. All work items live in component repos.
+
+          additional_permissions: |
+            actions: read
