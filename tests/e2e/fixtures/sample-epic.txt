@@ -1,0 +1,25 @@
+Epic: Allow guests to cancel their bookings online
+
+Business Objective:
+Guests currently must call the support line to cancel reservations, which drives up support costs
+and generates negative NPS scores. We need a self-service cancellation flow so guests can cancel
+online up to 24 hours before their slot starts.
+
+Scope:
+In scope:
+- Cancellation page in the booking portal UI
+- DELETE endpoint on the reservation service
+- ReservationCancelled event published to EventBridge
+- Email notification to the guest on successful cancellation
+
+Out of scope:
+- Partial cancellations (all-or-nothing only)
+- Refund processing (handled by a separate payment team)
+- Cancellations within 24 hours of the slot (blocked by business rule)
+
+Affected domains: booking
+
+Constraints:
+- Must comply with GDPR: no PII in event payloads
+- Response time < 200ms p99 for the cancellation endpoint
+- Target delivery: Q2 2026

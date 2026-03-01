@@ -1,21 +1,42 @@
 name: Initiative Intake
 
-# Fires automatically when a GitHub Project is created in the david-iaggbs organization.
-# Evaluates the new initiative against the product registry and produces a structured
-# intake issue in this repository for the solution architect.
+# GitHub Projects v2 events are NOT available as repo-level workflow triggers.
+# This workflow is invoked in two ways:
+#
+# 1. workflow_dispatch — manually from the Actions UI or via `gh workflow run`
+# 2. repository_dispatch (type: initiative-created) — sent by an org-level webhook
+#    or automation when a GitHub Project is created in david-iaggbs.
+#
+# To wire an org webhook:
+#   POST /repos/david-iaggbs/sandbox-swe-dparra--solution-architect/dispatches
+#   { "event_type": "initiative-created",
+#     "client_payload": { "title": "...", "url": "...", "created_by": "..." } }
 on:
-  projects_v2:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      initiative_title:
+        description: 'Title of the new GitHub Project (initiative)'
+        required: true
+        type: string
+      initiative_url:
+        description: 'URL of the GitHub Project (optional)'
+        required: false
+        type: string
+      created_by:
+        description: 'GitHub login of who created the initiative'
+        required: false
+        type: string
+  repository_dispatch:
+    types: [initiative-created]
 
 jobs:
   evaluate:
     name: Evaluate new initiative against product registry
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # to commit ADR files if needed
-      issues: write     # to open the intake issue in this repo
+      contents: write
+      issues: write
       pull-requests: write
-      projects: read    # to read project details
       id-token: write
       actions: read
 
@@ -33,10 +54,9 @@ jobs:
           prompt: |
             A new GitHub Project (initiative) has just been created in the david-iaggbs organization.
 
-            Project title: "${{ github.event.projects_v2.title }}"
-            Project node ID: ${{ github.event.projects_v2.node_id }}
-            Created by: ${{ github.event.sender.login }}
-            Created at: ${{ github.event.projects_v2.created_at }}
+            Project title:  "${{ inputs.initiative_title || github.event.client_payload.title }}"
+            Project URL:    ${{ inputs.initiative_url || github.event.client_payload.url || 'not provided' }}
+            Created by:     ${{ inputs.created_by || github.event.client_payload.created_by || github.actor }}
 
             Perform the Initiative Evaluation Process defined in README.md.
             Execute every step automatically — do not wait for confirmation.
@@ -46,21 +66,21 @@ jobs:
             ## Step 1 — Domain Fit
 
             Read the Product Registry table in README.md.
-            Analyze the initiative title and (if available) its description to understand its business domain.
+            Analyze the initiative title to understand its business domain.
 
             - If it fits within one or more existing products: list which products are involved.
-            - If it requires a new product: propose the product name and the three repo names
-              following the naming convention:
-                - `sandbox-swe-dparra--{product}--infra`
-                - `sandbox-swe-dparra--{product}--design`
-                - `sandbox-swe-dparra--{product}--{first-service}--service`
+            - If it requires a new product: propose the product name and the repo names following
+              the naming convention in README.md:
+                - sandbox-swe-dparra--{product}--infra
+                - sandbox-swe-dparra--{product}--design
+                - sandbox-swe-dparra--{product}--{first-service}--service
 
             ---
 
             ## Step 2 — Product Impact
 
             For each affected product, identify which component repos will be involved:
-            - --design: likely always involved (specs must be written before implementation)
+            - --design: always involved (specs before implementation)
             - --infra: involved if new shared resources are needed
             - --service: list each service likely to be extended or created
             - --ui: list each UI likely to be extended or created
@@ -70,14 +90,12 @@ jobs:
             ## Step 3 — ADR
 
             If this initiative introduces a new product boundary or a new cross-cutting
-            architectural pattern that does not yet have an ADR, determine the next available
-            ADR number by listing files in the adr/ directory, then open an issue in THIS
-            repository (david-iaggbs/sandbox-swe-dparra--solution-architect) with:
+            architectural pattern, determine the next available ADR number by listing files
+            in the adr/ directory, then open an issue in THIS repository with:
             - Title: "[ADR] <decision title>"
-            - Body: pre-filled following adr/template.md, with Status: Proposed
+            - Body: pre-filled following adr/template.md, Status: Proposed
 
             Do NOT commit the ADR file — open the issue only so it can be reviewed first.
-
             If no ADR is warranted, state "ADR: not required".
 
             ---
@@ -87,16 +105,15 @@ jobs:
             Create an issue in THIS repository
             (david-iaggbs/sandbox-swe-dparra--solution-architect) with:
 
-            Title: "[INITIATIVE] ${{ github.event.projects_v2.title }}"
+            Title: "[INITIATIVE] ${{ inputs.initiative_title || github.event.client_payload.title }}"
             Labels: initiative
 
             Body must include:
-            - **Initiative**: "${{ github.event.projects_v2.title }}" — link to the GitHub Project
+            - **Initiative**: title and URL of the GitHub Project
             - **Domain fit**: existing products involved (with repo links) OR proposed new product names
-            - **Component repos in scope**: table of repo | role (design / infra / service / ui)
+            - **Component repos in scope**: table with columns repo | role (design / infra / service / ui)
             - **ADR**: link to the ADR issue if created, or "not required"
-            - **Recommended next steps**: ordered list of actions for the solution architect,
-              e.g. approve ADR, register new product in README, create first epics in product-owner repo
+            - **Recommended next steps**: ordered list of actions for the solution architect
 
           additional_permissions: |
             actions: read

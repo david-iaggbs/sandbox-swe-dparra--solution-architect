@@ -1,0 +1,15 @@
+{
+  "name": "sa-workspace-tests",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test:config":    "node --test tests/e2e/test-workflow-config.js",
+    "test:epic":      "node --test tests/e2e/test-epic-evaluation.js",
+    "test:initiative":"node --test tests/e2e/test-initiative-intake.js",
+    "test":           "node --test tests/e2e/*.js",
+    "cleanup":        "node tests/e2e/cleanup.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,116 @@
+name: Test SA Workflows
+
+# Run on demand or on a weekly schedule to catch regressions.
+# Static config tests always run. Live trigger tests are opt-in.
+on:
+  workflow_dispatch:
+    inputs:
+      run_live_tests:
+        description: 'Run live trigger tests (creates real issues, requires GH_TOKEN)'
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 8 * * 1'  # Mondays at 08:00 UTC
+
+jobs:
+  # ── Job 1: Static configuration tests ──────────────────────────────────────
+  # Validates workflow files, templates, and CLAUDE.md are correctly structured.
+  # No secrets required. Always runs.
+  test-config:
+    name: Static configuration tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run static config tests
+        run: node --test tests/e2e/test-workflow-config.js
+
+  # ── Job 2: Live epic evaluation trigger test ────────────────────────────────
+  # Creates a real epic issue, verifies the workflow fires and Claude posts a
+  # summary comment. Requires GH_TOKEN. Opt-in via run_live_tests input.
+  test-epic:
+    name: Live epic evaluation test
+    needs: test-config
+    if: inputs.run_live_tests == true || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run live epic evaluation test
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          RUN_LIVE_TRIGGER_TEST: 'true'
+        run: node --test tests/e2e/test-epic-evaluation.js
+
+  # ── Job 3: Live initiative intake trigger test ──────────────────────────────
+  # Triggers workflow_dispatch on initiative-intake.yml and verifies the intake
+  # issue is created. Requires GH_TOKEN with workflow scope. Opt-in.
+  test-initiative:
+    name: Live initiative intake test
+    needs: test-config
+    if: inputs.run_live_tests == true || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run live initiative intake test
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          RUN_LIVE_TRIGGER_TEST: 'true'
+        run: node --test tests/e2e/test-initiative-intake.js
+
+  # ── Job 4: Cleanup ──────────────────────────────────────────────────────────
+  # Closes all [TEST] issues created during live tests.
+  # Runs unconditionally so artifacts are always cleaned up even on failure.
+  cleanup:
+    name: Cleanup test artifacts
+    needs: [test-epic, test-initiative]
+    if: always() && (inputs.run_live_tests == true || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Clean up [TEST] issues
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: node tests/e2e/cleanup.js
