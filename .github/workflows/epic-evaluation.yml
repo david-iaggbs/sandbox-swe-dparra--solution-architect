@@ -60,8 +60,11 @@ jobs:
             Read the Product Registry in README.md.
             Identify every product (row in the Registered Products table) whose --design,
             --infra, --service, or --ui repos will need changes to implement this epic.
-            If the epic introduces a new domain not covered by any registered product,
-            flag that a new product must be registered first.
+            If the epic introduces a new domain not covered by any registered product:
+            - Propose the new product name following the naming convention in README.md
+            - Run the scaffold-infra skill to create the Terraform infrastructure repo:
+              `/scaffold-infra <product-name>`
+            - Note the new repo URL in the summary comment.
 
             ---
 

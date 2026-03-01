@@ -69,9 +69,10 @@ jobs:
             Analyze the initiative title to understand its business domain.
 
             - If it fits within one or more existing products: list which products are involved.
-            - If it requires a new product: propose the product name and the repo names following
-              the naming convention in README.md:
-                - sandbox-swe-dparra--{product}--infra
+            - If it requires a new product: propose the product name and run the scaffold-infra
+              skill to create the Terraform infrastructure repo immediately:
+                `/scaffold-infra <product-name>`
+              Also list the additional repos to be created:
                 - sandbox-swe-dparra--{product}--design
                 - sandbox-swe-dparra--{product}--{first-service}--service
 

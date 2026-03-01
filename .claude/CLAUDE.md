@@ -119,5 +119,16 @@ After creating all issues, post a summary comment on the epic issue listing ever
 | Skill | Invocation | Purpose |
 |-------|-----------|---------|
 | `decompose-usecase` | `/decompose-usecase [use case]` | Analyze a use case → full architecture plan |
+| `scaffold-infra` | `/scaffold-infra [project-name]` | Scaffold Terraform ECS Fargate infra repo (VPC, IAM, ALB, ECS, EventBridge) |
 | `scaffold-microservice` | `/scaffold-microservice [spec]` | Scaffold Spring Boot service + CDK |
 | `scaffold-webui` | `/scaffold-webui [spec]` | Scaffold Astro SSR UI + CDK |
+
+## Infra Repo Scaffolding Rule
+
+Whenever a new `--infra` repository is needed (e.g. a new product is registered or an epic requires a new product domain), run the `scaffold-infra` skill automatically:
+
+```bash
+/scaffold-infra <product-name>
+```
+
+This creates `david-iaggbs/sandbox-swe-dparra--terraform-<product-name>--infra` with all standard Terraform modules (VPC, IAM, ALB, ECS, EventBridge) wired together.
