@@ -58,9 +58,7 @@ When a new initiative is proposed, answer these questions in order:
 
 ### Decision Log
 
-| Date | Initiative | Decision | Rationale |
-|------|-----------|----------|-----------|
-| — | — | — | — |
+Architectural decisions are tracked as ADRs in [`/adr`](./adr/README.md). See the [ADR index](./adr/README.md#index) for the full history.
 
 ---
 
