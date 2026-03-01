@@ -119,9 +119,29 @@ After creating all issues, post a summary comment on the epic issue listing ever
 | Skill | Invocation | Purpose |
 |-------|-----------|---------|
 | `decompose-usecase` | `/decompose-usecase [use case]` | Analyze a use case → full architecture plan |
+| `scaffold-design` | `/scaffold-design scaffold <product-name>` | Scaffold arc42 + C4 + ADR + draw.io design repo for a product |
+| `scaffold-design` | `/scaffold-design new-adr <title> [--repo <product>]` | Create a new ADR in an existing design repo |
+| `scaffold-design` | `/scaffold-design update-section <03-12> [--adr <NNNN>] [--repo <product>]` | Update an arc42 section as the design evolves |
 | `scaffold-infra` | `/scaffold-infra [project-name]` | Scaffold Terraform ECS Fargate infra repo (VPC, IAM, ALB, ECS, EventBridge) |
 | `scaffold-microservice` | `/scaffold-microservice [spec]` | Scaffold Spring Boot service + CDK |
 | `scaffold-webui` | `/scaffold-webui [spec]` | Scaffold Astro SSR UI + CDK |
+
+## Design Repo Scaffolding Rule
+
+Whenever a new product is created or an existing product's architecture needs to be documented or evolved, run the `scaffold-design` skill:
+
+```bash
+# New product — create the design repo
+/scaffold-design scaffold <product-name>
+
+# Capture a decision — add an ADR
+/scaffold-design new-adr "<decision title>" --repo <product-name>
+
+# Evolve the documentation after a decision is accepted
+/scaffold-design update-section <03-12> --adr <NNNN> --repo <product-name>
+```
+
+This creates or updates `david-iaggbs/sandbox-swe-dparra--<product-name>--design` with arc42 sections, C4 diagrams (draw.io), and an ADR log. The product is also registered in the solution-architect registry.
 
 ## Infra Repo Scaffolding Rule
 
