@@ -32,6 +32,15 @@ jobs:
           # GH_TOKEN must be a PAT with repo scope across the david-iaggbs org
           # so Claude can scaffold repos, close issues, and commit ADR files.
           github_token: ${{ secrets.GH_TOKEN }}
+          # Pre-authorize Bash and WebFetch at settings level so Claude does not
+          # ask for per-call approval. Written to ~/.claude/settings.json before run.
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(*)", "WebFetch(*)"],
+                "deny": []
+              }
+            }
           prompt: |
             An issue has just been labeled as an ADR in this repository.
 
