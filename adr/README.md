@@ -98,7 +98,7 @@ Do NOT write an ADR for:
 
 | ADR | Title | Status | Categories | Date |
 |-----|-------|--------|------------|------|
-| — | _No decisions recorded yet_ | — | — | — |
+| [ADR-0001](0001-introduce-minesweeper-product-domain.md) | Introduce Minesweeper Product Domain | Accepted | product, infra, service, ui | 2026-03-01 |
 
 > Keep this index up to date. Add a row every time a new ADR is created or its status changes.
 
