@@ -73,21 +73,29 @@ jobs:
             ## Step 2 — Execute decisions
 
             Based on the `Categories` and `Follow-up actions`, execute the required actions.
-            For each action, run the appropriate command and document the result.
+            For each action, document the result (created / already exists / skipped).
+
+            **IMPORTANT — existence check before every repo action:**
+            Use the GitHub API to check existence. A 200 response means the repo already
+            exists and must be treated as SUCCESS (not an error). Only attempt creation on 404.
+            ```bash
+            gh api repos/david-iaggbs/<repo-name> --silent && echo "EXISTS" || echo "NOT_FOUND"
+            ```
+            If the repo EXISTS → log "✓ already exists, skipping creation" and continue.
+            If NOT_FOUND → create the repo using `gh repo create`.
+
+            **DO NOT use `/scaffold-design`, `/scaffold-infra`, `/scaffold-microservice`,
+            or `/scaffold-webui` slash commands** — those are local CLI skills unavailable
+            in the GitHub Actions runner. Use `gh` CLI and `git` directly.
 
             Category mapping:
-            - `product` — scaffold a new design repo: `/scaffold-design scaffold <product-name>`
-              and register the product in README.md if not already listed
-            - `infra` — scaffold infrastructure: `/scaffold-infra <product-name>`
-            - `service` — scaffold microservice: `/scaffold-microservice <spec>`
-            - `ui` — scaffold web UI: `/scaffold-webui <spec>`
+            - `product` — ensure design repo exists: `david-iaggbs/sandbox-swe-dparra--<product>--design`
+              and ensure the product row exists in README.md Registered Products table.
+            - `infra` — ensure infra repo exists: `david-iaggbs/sandbox-swe-dparra--terraform-<product>--infra`
+            - `service` — ensure service repo exists: `david-iaggbs/sandbox-swe-dparra--<product>--<service>--service`
+            - `ui` — ensure UI repo exists: `david-iaggbs/sandbox-swe-dparra--<product>--<ui>--ui`
             - `org`, `initiative`, `data`, `integration`, `security` — update templates,
               documentation, or README.md as described in the Follow-up actions
-
-            Always check whether a repo or product already exists before scaffolding:
-            ```
-            gh repo view david-iaggbs/<repo-name> 2>&1
-            ```
 
             ---
 
