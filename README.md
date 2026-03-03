@@ -32,6 +32,7 @@ Each product groups related repositories under a shared domain. Naming conventio
 | Product | Domain | Infra | Design | Services | UIs |
 |---------|--------|-------|--------|----------|-----|
 | `booking` | Online booking and availability management | [infra](https://github.com/david-iaggbs/sandbox-swe-dparra--booking--infra) | [design](https://github.com/david-iaggbs/sandbox-swe-dparra--booking--design) | [availability-service](https://github.com/david-iaggbs/sandbox-swe-dparra--booking--availability--service) | — |
+| `minesweeper` | Browser Minesweeper game — game engine and UI | — | — | [engine-service](https://github.com/david-iaggbs/sandbox-swe-dparra--minesweeper--engine--service) | — |
 
 > To register a new product, add a row to this table and create the `--infra` and `--design` repos first.
 
