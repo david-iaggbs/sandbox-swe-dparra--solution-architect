@@ -16,13 +16,77 @@ Parse the use case and identify:
 4. **Data Ownership Boundaries** — which service owns which data
 5. **UI Views & Pages** — screens, forms, and user interactions needed
 6. **API Surface** — what backend endpoints the UI will consume
+7. **Service Complexity** — for each bounded context, classify as CRUD or rich-domain (see below)
+
+## Service Type Classification
+
+For every backend service in the decomposition, you **must** classify it as one of two types before defining its details. Choose based on domain complexity:
+
+### CRUD Microservice (`scaffold-crud-microservice`)
+
+Use when the bounded context is **data-centric with simple lifecycle**:
+- Entities have no meaningful state machine — status changes are trivial or absent
+- Business rules are limited to validation (non-null, format, uniqueness)
+- No cross-entity invariants that must be enforced in code
+- Operations are dominated by create/read/update/delete with no complex orchestration
+- No domain events produced as a result of business decisions
+- Examples: product catalog, user profiles, reference data, configuration, tags, categories
+
+Technical characteristics:
+- Layered architecture: `controller → service → repository`
+- JPA entities with Spring Data repositories
+- `@Transactional` on service methods
+- Template: `scaffold-crud-microservice`
+
+### Rich-Domain Microservice (`scaffold-rich-domain-microservice`)
+
+Use when the bounded context has **complex business rules and meaningful domain behaviour**:
+- Entities have a lifecycle with meaningful status transitions (e.g., `CONFIRMED → CANCELLED`)
+- Domain invariants must be enforced (e.g., no double-booking, capacity limits, blackout dates)
+- Business logic cannot be expressed as simple CRUD — it requires domain decisions
+- Multiple value objects capturing domain concepts (e.g., `TimeSlot`, `Money`, `Address`)
+- Domain events are produced as outcomes of business operations
+- Side effects (audit, notifications) exist but are optional / decoupled
+- Examples: booking/reservation, order management, payment processing, inventory allocation, workflow approval
+
+Technical characteristics:
+- Hexagonal architecture: pure domain layer → application ports → adapters
+- Aggregate roots with `create()`/`reconstitute()` factory methods
+- Sealed `DomainEvent` interface with record implementations
+- Inbound/outbound port interfaces separating domain from infrastructure
+- HATEOAS API exposing state-driven hypermedia links
+- AppConfig hot-reload for domain configuration (e.g., business rules, thresholds)
+- DynamoDB audit log built-in
+- RDS PostgreSQL provisioned via CDK (not just docker-compose)
+- Template: `scaffold-rich-domain-microservice`
+
+### Classification Decision Table
+
+| Signal | CRUD | Rich-Domain |
+|--------|------|-------------|
+| Status enum with business meaning | — | ✓ |
+| Business rules enforced in code | — | ✓ |
+| Value objects (Money, TimeSlot, Address) | — | ✓ |
+| Domain events produced | — | ✓ |
+| Audit trail required | — | ✓ |
+| HATEOAS state-driven links | — | ✓ |
+| Primarily read-heavy reference data | ✓ | — |
+| Simple CRUD with validation only | ✓ | — |
+| No lifecycle / status changes | ✓ | — |
+
+When in doubt, prefer **CRUD** for supporting services and **rich-domain** for the core business capability of the product.
+
+---
 
 ## Backend Services Definition
 
-For each proposed backend service, define:
+For each proposed backend service, first state its **type** (CRUD or rich-domain), then define:
+
+### Fields common to both types
+
 - **Service Name**: `{domain}-service` (e.g., `order-service`, `inventory-service`)
+- **Type**: `CRUD` | `rich-domain`
 - **Bounded Context**: Clear business domain responsibility
-- **JPA Entities**: Domain models with key fields, relationships, validation rules
 - **REST Endpoints**: Full CRUD operations
   - `GET /api/v1/{resource}` — list/search with pagination
   - `GET /api/v1/{resource}/{id}` — retrieve single resource
@@ -39,10 +103,27 @@ For each proposed backend service, define:
   - Handler logic description
 - **AWS Services Needed**: Only from allowed list (see constraints below)
 - **ALB Configuration**:
-  - Path pattern (e.g., `/api/v1/orders/*`)
+  - Path patterns: `/api/v1/{resource}/*` (CRUD) or `/api/v1/{resource}/*`, `/api/hateoas/v1/{resource}/*`, `/swagger-ui*`, `/actuator/*`, `/sse` (rich-domain)
   - Priority (100, 200, 300, etc. — increment by 100 per service)
   - Health check endpoint: `/actuator/health`
 - **Database Schema**: Tables, indexes, foreign keys (PostgreSQL or DynamoDB)
+
+### Additional fields for CRUD services
+
+- **JPA Entities**: Domain models with key fields, relationships, validation rules
+- **Spring Data Repositories**: method signatures for custom queries
+- **Service Layer**: `@Service @Transactional` methods
+
+### Additional fields for rich-domain services
+
+- **Aggregate Root(s)**: Name, factory methods (`create` / `reconstitute`), business methods and the invariants they enforce
+- **Value Objects**: Name, fields, validation rules in compact constructor
+- **Domain Events** (sealed interface): each event record with fields and when it is published
+- **Domain Exceptions**: each exception, the invariant it represents, HTTP status it maps to
+- **Inbound Ports** (use-case interfaces): method signatures
+- **Outbound Ports**: repository, event publisher, audit logger, notification sender interfaces
+- **AppConfig**: JSON schema for hot-reload domain configuration (e.g., business rules thresholds)
+- **DynamoDB Audit Log**: PK/SK pattern for the audit table
 
 ## Web UI Components Definition
 
@@ -118,10 +199,25 @@ Your analysis must include these sections:
 
 **Backend Services Table:**
 
-| Service Name | Bounded Context | Entities | REST Endpoints | Events Published | Events Consumed | AWS Services | ALB Priority | Database |
-|--------------|-----------------|----------|----------------|------------------|-----------------|--------------|--------------|----------|
-| order-service | Order Management | Order, OrderItem | /api/v1/orders/* | OrderCreated, OrderUpdated | PaymentProcessed | RDS, SQS, EventBridge | 100 | PostgreSQL |
-| ... | ... | ... | ... | ... | ... | ... | ... | ... |
+| Service Name | Type | Bounded Context | Aggregate / Entities | REST Endpoints | Events Published | Events Consumed | AWS Services | ALB Priority | Database |
+|--------------|------|-----------------|----------------------|----------------|------------------|-----------------|--------------|--------------|----------|
+| order-service | rich-domain | Order Management | `Order` aggregate (CONFIRMED→CANCELLED), `OrderItem` VO | /api/v1/orders/*, /api/hateoas/v1/orders/* | OrderCreated, OrderUpdated | PaymentProcessed | RDS, SQS, EventBridge, AppConfig, DynamoDB | 100 | PostgreSQL + DynamoDB audit |
+| product-service | CRUD | Product Catalog | `Product`, `Category` entities | /api/v1/products/* | — | — | RDS, SSM | 200 | PostgreSQL |
+| ... | ... | ... | ... | ... | ... | ... | ... | ... | ... |
+
+For each **rich-domain** service, also include a domain detail block immediately below the table:
+
+```
+Order Service — Domain Detail
+  Aggregate:      Order (status: CONFIRMED | CANCELLED)
+  Value Objects:  OrderItem(productId, quantity, unitPrice), Money(amount, currency)
+  Domain Events:  OrderConfirmed, OrderCancelled (sealed DomainEvent interface)
+  Invariants:     - total items must be > 0
+                  - cancellation only allowed within freeCancellationHours
+                  - duplicate product not allowed in same order
+  AppConfig:      { "freeCancellationHours": 24, "maxItemsPerOrder": 50 }
+  Audit Log PK:   ORDER#{id}, SK: ACTION#{timestamp}
+```
 
 **Web UI Components Table:**
 
@@ -152,13 +248,26 @@ For each main workflow, provide:
 
 ### 4. Repository Plan
 
-One git repository per component (backend service + web UI), each following template structure:
+One git repository per component (backend service + web UI), each following the appropriate template.
 
-**Backend Services** (template: https://github.com/david-iaggbs/sandbox-swe-dparra--spring-cloud-service):
-- Repository: `{service-name}` (e.g., `order-service`)
+**CRUD Backend Services** (template: https://github.com/david-iaggbs/sandbox-swe-dparra--spring-cloud-service, skill: `scaffold-crud-microservice`):
+- Repository: `sandbox-swe-dparra--{product}--{service}--service`
+- Scaffold command: `/scaffold-crud-microservice <service-name> [spec]`
 - Structure:
-  - `app/` — Spring Boot 3.2.1, Java 21 (REST API, JPA, Bean Validation, OpenAPI, Spring Cloud AWS)
-  - `cdk/` — AWS CDK Java (ECS Fargate, RDS, AppConfig, IAM, Security Groups, ALB routing, optionally SQS+DynamoDB)
+  - `app/` — Spring Boot 3.2.1, Java 21, layered architecture (controller → service → repository)
+  - `cdk/` — AWS CDK Java (ECS Fargate, SSM, IAM, Security Groups, ALB routing, optionally SQS+DynamoDB)
+  - `docker-compose.yml` — LocalStack, PostgreSQL, Jaeger
+  - `deploy-*.sh` scripts
+
+**Rich-Domain Backend Services** (template: https://github.com/david-iaggbs/sandbox-swe-dparra--business--spring-cloud-service, skill: `scaffold-rich-domain-microservice`):
+- Repository: `sandbox-swe-dparra--{product}--{service}--service`
+- Scaffold command: `/scaffold-rich-domain-microservice <service-name> <domain-name> <entity-name>`
+- Structure:
+  - `app/` — Spring Boot 3.2.1, Java 21, hexagonal architecture (domain → ports → adapters)
+    - `domain/` — pure domain layer (no framework imports): aggregate roots, value objects, domain events, domain services, inbound/outbound ports
+    - `application/` — use-case application services (`@Transactional`), lifecycle hooks
+    - `adapter/` — REST + HATEOAS inbound, JPA + DynamoDB + SQS + AppConfig outbound
+  - `cdk/` — AWS CDK Java (ECS Fargate, RDS PostgreSQL, AppConfig, DynamoDB audit, EventBridge→SQS, IAM, ALB)
   - `docker-compose.yml` — LocalStack, PostgreSQL, Jaeger
   - `deploy-*.sh` scripts
 
@@ -197,28 +306,38 @@ For each web UI, document backend service dependencies:
 
 ALB Listener Rules priority allocation (lower number = higher priority):
 
-| Priority | Path Pattern | Target | Component Type | Port |
-|----------|--------------|--------|----------------|------|
-| 50 | /* | customer-portal-ui | Web UI | 4321 |
-| 75 | /admin/* | admin-dashboard-ui | Web UI | 4321 |
-| 100 | /api/v1/products/* | product-service | Backend API | 8080 |
-| 200 | /api/v1/orders/* | order-service | Backend API | 8080 |
-| 300 | /api/v1/payments/* | payment-service | Backend API | 8080 |
-| 400 | /api/v1/inventory/* | inventory-service | Backend API | 8080 |
+| Priority | Path Pattern(s) | Target | Type | Port |
+|----------|----------------|--------|------|------|
+| 50 | `/*` | customer-portal-ui | Web UI | 4321 |
+| 75 | `/admin/*` | admin-dashboard-ui | Web UI | 4321 |
+| 100 | `/api/v1/orders/*`, `/api/hateoas/v1/orders/*`, `/swagger-ui*`, `/actuator/*`, `/sse` | order-service | rich-domain backend | 8080 |
+| 200 | `/api/v1/products/*`, `/actuator/*` | product-service | CRUD backend | 8080 |
+| 300 | `/api/v1/payments/*`, `/api/hateoas/v1/payments/*`, `/swagger-ui*`, `/actuator/*`, `/sse` | payment-service | rich-domain backend | 8080 |
+| 400 | `/api/v1/inventory/*`, `/actuator/*` | inventory-service | CRUD backend | 8080 |
 
-**Routing Logic:**
-- Web UIs get lower priority numbers (50-99) for catch-all routes
+**Routing rules:**
+- Web UIs get lower priority numbers (50–99) for catch-all routes
 - Backend API services get higher numbers (100+) for specific API paths
+- **Rich-domain services** include `/api/hateoas/v1/*`, `/swagger-ui*`, `/sse` (MCP SSE transport) in addition to the standard REST path
+- **CRUD services** include only `/api/v1/*` and `/actuator/*`
 - UI BFF routes internally proxy to backend services via private URLs
 
 ### 7. Configuration Management
 
-**Per Backend Service** (via AppConfig + Parameter Store):
+**CRUD services** (via SSM Parameter Store):
 - `/{service}/spring.datasource.url` — RDS connection string
 - `/{service}/spring.datasource.password` — Secrets Manager ARN
-- `/{service}/aws.eventbridge.bus.name` — EventBridge bus
-- `/{service}/aws.sqs.queue.url` — SQS queue URL (if consumer)
-- Feature flags via AppConfig for dynamic behavior
+- `/{service}/aws.sqs.queue.url` — SQS queue URL (if event consumer)
+
+**Rich-domain services** (via AppConfig hot-reload + SSM Parameter Store):
+- `/{service}/spring.datasource.url` — RDS connection string
+- `/{service}/db/credentials` — Secrets Manager (username + password)
+- `/{service}/aws.sqs.queue.url` + `/{service}/aws.sqs.queue.name` — SQS (if consumer)
+- AppConfig hosted profile — domain configuration JSON (hot-reloaded without restart):
+  ```json
+  { "<businessRule>": <value>, "<threshold>": <value>, ... }
+  ```
+  Example for booking: `{ "freeCancellationHours": 24, "feePercentage": 50, "maxAdvanceBookingDays": 90 }`
 
 **Per Web UI** (via SSM Parameter Store):
 - `/{ui-service}/app.description` — UI description/tagline
@@ -309,34 +428,63 @@ Browser
 
 ### Repository Structure Templates
 
-**Backend Service Template:**
+**CRUD Backend Service** (`scaffold-crud-microservice`):
 ```
 {service-name}/
 ├── app/
 │   ├── src/main/java/
-│   │   ├── controller/         # REST controllers
-│   │   ├── service/            # Business logic
-│   │   ├── repository/         # JPA repositories
-│   │   ├── model/              # Domain entities
-│   │   ├── dto/                # Request/response DTOs
-│   │   ├── config/             # Spring configuration
-│   │   └── event/              # EventBridge event handlers
+│   │   ├── controller/         # REST controllers + GlobalExceptionHandler
+│   │   ├── service/            # @Service @Transactional business logic
+│   │   ├── repository/         # Spring Data JPA repositories
+│   │   ├── model/              # JPA @Entity classes
+│   │   ├── dto/                # Request/response records
+│   │   ├── config/             # AppConfig, DynamoDB, OpenAPI config
+│   │   └── event/              # @SqsListener event handler
 │   ├── src/main/resources/
-│   │   ├── application.yml     # Spring Boot config
+│   │   ├── application.yml     # Spring Boot config (all profiles)
 │   │   └── db/migration/       # Flyway migrations
-│   ├── src/test/java/          # Unit + integration tests
-│   ├── Containerfile           # Multi-stage Docker build
+│   ├── src/test/java/          # Unit + integration tests (Testcontainers)
+│   ├── Containerfile
 │   └── pom.xml
-├── cdk/
-│   ├── src/main/java/          # CDK stack definitions
-│   ├── src/test/java/          # CDK tests
-│   ├── cdk.json                # CDK context
-│   └── pom.xml
+├── cdk/                        # CDK stack (SSM, IAM, SG, ALB, ECS)
 ├── docker-compose.yml          # LocalStack + PostgreSQL + Jaeger
-├── deploy-local-app.sh
-├── deploy-infra.sh
-├── deploy-app.sh
-├── destroy-infra.sh
+├── deploy-*.sh / destroy-infra.sh
+└── README.md
+```
+
+**Rich-Domain Backend Service** (`scaffold-rich-domain-microservice`):
+```
+{service-name}/
+├── app/
+│   ├── src/main/java/
+│   │   ├── domain/
+│   │   │   ├── model/          # Aggregate roots, value objects (records), enums
+│   │   │   ├── event/          # Sealed DomainEvent interface + event records
+│   │   │   ├── exception/      # Domain rule violation exceptions
+│   │   │   ├── service/        # Pure domain services (no framework imports)
+│   │   │   └── port/
+│   │   │       ├── inbound/    # Use-case interfaces
+│   │   │       └── outbound/   # Repository, EventPublisher, AuditLogger ports
+│   │   ├── application/
+│   │   │   └── service/        # @Service @Transactional use-case implementations
+│   │   └── adapter/
+│   │       ├── inbound/
+│   │       │   ├── rest/       # REST controller + HATEOAS controller + DTOs
+│   │       │   └── event/      # @SqsListener (feature-flag gated)
+│   │       └── outbound/
+│   │           ├── persistence/ # JPA + DynamoDB adapters
+│   │           ├── event/       # SQS event publisher
+│   │           ├── notification/# Log notification adapter
+│   │           └── config/      # AppConfig, DynamoDB, OpenAPI config
+│   ├── src/main/resources/
+│   │   ├── application.yml     # Spring Boot config (all profiles)
+│   │   └── db/migration/       # Flyway migrations
+│   ├── src/test/java/          # Unit + integration tests (docker-compose SharedContainers)
+│   ├── Containerfile
+│   └── pom.xml
+├── cdk/                        # CDK stack (AppConfig, RDS, DynamoDB, SQS, IAM, SG, ALB, ECS)
+├── docker-compose.yml          # LocalStack + PostgreSQL + Jaeger
+├── deploy-*.sh / destroy-infra.sh / docker-cdk.sh / Dockerfile.cdk
 └── README.md
 ```
 
