@@ -162,6 +162,60 @@ jobs:
               (endpoints, entities, event flows, BFF routes, SSM params, ALB priorities — never vague)
             - **Acceptance Criteria**: at least 3 verifiable, checkable conditions
 
+            ### 3c — Populate the design repo with the architecture (applies to BOTH 3a and 3b)
+
+            After scaffolding (3a) or confirming existence (3b), the `--design` repo must be
+            updated to reflect the full architecture produced in Step 2. This is mandatory
+            regardless of whether the repo was just created or already existed.
+
+            Read the scaffold-design skill for the update-section mode:
+            ```bash
+            cat .claude/skills/scaffold-design/SKILL.md
+            ```
+
+            Clone (or reuse the already-cloned) design repo:
+            ```bash
+            DESIGN_REPO="sandbox-swe-dparra--<product-name>--design"
+            DESIGN_DIR="/tmp/$DESIGN_REPO"
+            rm -rf "$DESIGN_DIR"
+            gh repo clone david-iaggbs/$DESIGN_REPO "$DESIGN_DIR"
+            cd "$DESIGN_DIR"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            ```
+
+            Then update each mandatory arc42 section with the content derived from the
+            Step 2 decomposition. For every section, read the current file first, then
+            write the updated content using the Step 2 plan as the source of truth:
+
+            | Section file | Content to write from Step 2 |
+            |---|---|
+            | `Documents/01-requirements.md` | Functional requirements (use case goals, user stories), quality goals (availability, latency, scalability targets) |
+            | `Documents/02-constraints.md` | Architecture constraints: ECS Fargate only, allowed AWS services, forbidden patterns (no Lambda, no direct HTTP between services, database-per-service) |
+            | `Documents/03-context-scope.md` | System boundary, external actors (users, external systems), a Mermaid `graph LR` C1 diagram showing the product and its external dependencies |
+            | `Documents/04-solution-strategy.md` | Key architectural decisions, service decomposition rationale, technology choices justified by Step 2 analysis, a Mermaid `graph TB` C2 container diagram |
+            | `Documents/05-building-blocks.md` | Service catalog table (name, bounded context, REST endpoints, events, DB), a Mermaid `graph TB` C3 component diagram per service |
+            | `Documents/06-runtime-view.md` | Event flow sequences from Step 2, one `sequenceDiagram` per main user workflow (e.g., game started, move submitted, game completed) |
+            | `Documents/07-deployment-view.md` | ECS Fargate cluster topology, ALB routing table, VPC layout, a Mermaid `graph TB` deployment diagram |
+
+            Rules for writing section content:
+            - Replace ALL placeholder text (`{...}`, `TBD`, empty sections) with real content from Step 2
+            - Keep the arc42 section headings and structure intact — only fill in the content
+            - Mermaid diagrams must use the existing workspace colour palette and node notation
+            - Do NOT update draw.io files automatically — note them as manual steps in CHANGELOG.md
+
+            Commit all updated sections in a single commit:
+            ```bash
+            git add Documents/
+            git commit -m "docs: populate arc42 sections from Step 2 architecture decomposition
+
+            Sections updated: 01-requirements, 02-constraints, 03-context-scope,
+            04-solution-strategy, 05-building-blocks, 06-runtime-view, 07-deployment-view
+
+            Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+            git push
+            ```
+
             For `org`, `initiative`, `data`, `integration`, `security` categories:
             update templates, documentation, or README.md as described in the Follow-up actions.
 
