@@ -125,6 +125,7 @@ After creating all issues, post a summary comment on the epic issue listing ever
 | `scaffold-infra` | `/scaffold-infra [project-name]` | Scaffold Terraform ECS Fargate infra repo (VPC, IAM, ALB, ECS, EventBridge) |
 | `scaffold-microservice` | `/scaffold-microservice [spec]` | Scaffold Spring Boot service + CDK |
 | `scaffold-webui` | `/scaffold-webui [spec]` | Scaffold Astro SSR UI + CDK |
+| `scaffold-rich-domain-microservice` | `/scaffold-rich-domain-microservice <service> <domain> <entity> [desc]` | Scaffold hexagonal architecture service (Ports & Adapters, rich domain model, HATEOAS, RDS, DynamoDB audit, CDK) |
 
 ## Design Repo Scaffolding Rule
 
