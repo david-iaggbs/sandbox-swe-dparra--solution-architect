@@ -13,7 +13,7 @@ This directory contains the canonical GitHub issue templates for every component
 
 ## How Templates Are Used
 
-**When scaffolding a new component repo**, copy the appropriate template to the new repo's `.github/ISSUE_TEMPLATE/` directory. The `scaffold-microservice` and `scaffold-webui` skills do this automatically.
+**When scaffolding a new component repo**, copy the appropriate template to the new repo's `.github/ISSUE_TEMPLATE/` directory. The `scaffold-crud-microservice` and `scaffold-webui` skills do this automatically.
 
 **When Claude creates issues during epic evaluation**, it uses these templates as the body format for every `gh issue create` call targeting a component repo. The fields map directly to what the component team needs to begin implementation without additional clarification.
 

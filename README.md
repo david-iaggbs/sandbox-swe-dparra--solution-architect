@@ -150,7 +150,7 @@ Expected Claude output (as issue comment):
 | Skill | Invocation | Purpose |
 |-------|-----------|---------|
 | `decompose-usecase` | `/decompose-usecase <use case>` | Analyze a use case → full architecture plan |
-| `scaffold-microservice` | `/scaffold-microservice <spec>` | Scaffold Spring Boot service + CDK under a product |
+| `scaffold-crud-microservice` | `/scaffold-crud-microservice <spec>` | Scaffold Spring Boot service + CDK under a product |
 | `scaffold-webui` | `/scaffold-webui <spec>` | Scaffold Astro SSR web UI + CDK under a product |
 
 ### Example Workflow
@@ -162,7 +162,7 @@ Expected Claude output (as issue comment):
 claude /decompose-usecase "checkout flow for the booking product: users select availability slots, confirm reservation, receive confirmation"
 
 # 4. Scaffold the new service under the booking product
-claude /scaffold-microservice "reservation-service under david-iaggbs/sandbox-swe-dparra--booking: manages confirmed reservations, expose REST CRUD, publish ReservationConfirmed event, consume SlotReserved from availability-service"
+claude /scaffold-crud-microservice "reservation-service under david-iaggbs/sandbox-swe-dparra--booking: manages confirmed reservations, expose REST CRUD, publish ReservationConfirmed event, consume SlotReserved from availability-service"
 
 # 5. Scaffold the UI
 claude /scaffold-webui "booking-portal-ui under david-iaggbs/sandbox-swe-dparra--booking: customer-facing checkout UI, pages for slot selection and reservation confirmation, proxying availability-service and reservation-service"
@@ -176,11 +176,11 @@ claude /scaffold-webui "booking-portal-ui under david-iaggbs/sandbox-swe-dparra-
 |------|---------|-------------|
 | [Claude Code CLI](https://claude.ai/claude-code) | `npm install -g @anthropic-ai/claude-code` | All skills |
 | GitHub CLI | `brew install gh` | Repo creation, PR management |
-| AWS CLI v2 | `brew install awscli` | `scaffold-microservice`, `scaffold-webui` |
-| AWS CDK CLI | `npm install -g aws-cdk` | `scaffold-microservice`, `scaffold-webui` |
-| Docker Desktop | [docker.com](https://www.docker.com/products/docker-desktop/) | `scaffold-microservice` (Testcontainers) |
-| Java 21 (Corretto) | `brew install --cask corretto21` | `scaffold-microservice` |
-| Maven 3.9+ | `brew install maven` | `scaffold-microservice` |
+| AWS CLI v2 | `brew install awscli` | `scaffold-crud-microservice`, `scaffold-webui` |
+| AWS CDK CLI | `npm install -g aws-cdk` | `scaffold-crud-microservice`, `scaffold-webui` |
+| Docker Desktop | [docker.com](https://www.docker.com/products/docker-desktop/) | `scaffold-crud-microservice` (Testcontainers) |
+| Java 21 (Corretto) | `brew install --cask corretto21` | `scaffold-crud-microservice` |
+| Maven 3.9+ | `brew install maven` | `scaffold-crud-microservice` |
 | Node.js 20 | `brew install node@20` | `scaffold-webui` |
 
 ## Required Environment Variables

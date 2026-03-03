@@ -110,7 +110,7 @@ jobs:
             gh api repos/david-iaggbs/<repo-name> --silent && echo "EXISTS" || echo "NOT_FOUND"
             ```
 
-            **DO NOT invoke `/scaffold-design`, `/scaffold-infra`, `/scaffold-microservice`,
+            **DO NOT invoke `/scaffold-design`, `/scaffold-infra`, `/scaffold-crud-microservice`,
             or `/scaffold-webui` as slash commands** — those require the interactive Claude Code
             CLI and are unavailable in this runner context.
 
@@ -127,7 +127,7 @@ jobs:
             |----------|------------|---------------|
             | `product` | `.claude/skills/scaffold-design/SKILL.md` | `scaffold <product-name>` |
             | `infra` | `.claude/skills/scaffold-infra/SKILL.md` | `<product-name>` |
-            | `service` | `.claude/skills/scaffold-microservice/SKILL.md` | `<spec from Step 2 plan>` |
+            | `service` | `.claude/skills/scaffold-crud-microservice/SKILL.md` | `<spec from Step 2 plan>` |
             | `ui` | `.claude/skills/scaffold-webui/SKILL.md` | `<spec from Step 2 plan>` |
 
             ### 3a — New product (repo does NOT exist)

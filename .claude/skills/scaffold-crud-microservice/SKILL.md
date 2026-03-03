@@ -1,5 +1,5 @@
 ---
-name: scaffold-microservice
+name: scaffold-crud-microservice
 description: Scaffold a complete microservice repo from the reference template with business logic and CDK infrastructure
 ---
 
