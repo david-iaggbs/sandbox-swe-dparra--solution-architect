@@ -84,18 +84,36 @@ jobs:
             If the repo EXISTS → log "✓ already exists, skipping creation" and continue.
             If NOT_FOUND → create the repo using `gh repo create`.
 
-            **DO NOT use `/scaffold-design`, `/scaffold-infra`, `/scaffold-microservice`,
-            or `/scaffold-webui` slash commands** — those are local CLI skills unavailable
-            in the GitHub Actions runner. Use `gh` CLI and `git` directly.
+            **DO NOT invoke `/scaffold-design`, `/scaffold-infra`, `/scaffold-microservice`,
+            or `/scaffold-webui` as slash commands** — those require the interactive Claude Code
+            CLI and are unavailable in this runner context.
 
-            Category mapping:
-            - `product` — ensure design repo exists: `david-iaggbs/sandbox-swe-dparra--<product>--design`
-              and ensure the product row exists in README.md Registered Products table.
-            - `infra` — ensure infra repo exists: `david-iaggbs/sandbox-swe-dparra--terraform-<product>--infra`
-            - `service` — ensure service repo exists: `david-iaggbs/sandbox-swe-dparra--<product>--<service>--service`
-            - `ui` — ensure UI repo exists: `david-iaggbs/sandbox-swe-dparra--<product>--<ui>--ui`
-            - `org`, `initiative`, `data`, `integration`, `security` — update templates,
-              documentation, or README.md as described in the Follow-up actions
+            Instead, **read the skill file for the required category directly from disk** and
+            execute its instructions step by step using `gh` CLI and `git`:
+
+            ```bash
+            # Example — read the scaffold-design skill before scaffolding a design repo
+            cat .claude/skills/scaffold-design/SKILL.md
+            ```
+
+            Category → skill file mapping:
+
+            | Category | Skill file | Mode argument |
+            |----------|------------|---------------|
+            | `product` | `.claude/skills/scaffold-design/SKILL.md` | `scaffold <product-name>` |
+            | `infra` | `.claude/skills/scaffold-infra/SKILL.md` | `<product-name>` |
+            | `service` | `.claude/skills/scaffold-microservice/SKILL.md` | `<spec from ADR>` |
+            | `ui` | `.claude/skills/scaffold-webui/SKILL.md` | `<spec from ADR>` |
+
+            For each required action:
+            1. Read the corresponding SKILL.md with `cat .claude/skills/<skill>/SKILL.md`
+            2. Locate the correct mode section (e.g. SCAFFOLD MODE, INFRA MODE)
+            3. Execute every step in that section using `gh` and `git` directly
+            4. Skip any interactive confirmation prompts — derive all values from the ADR issue body
+            5. Do NOT ask for missing inputs; infer them from the ADR Decision and Follow-up actions
+
+            For `org`, `initiative`, `data`, `integration`, `security` categories:
+            update templates, documentation, or README.md as described in the Follow-up actions
 
             ---
 
