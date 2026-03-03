@@ -56,7 +56,7 @@ Create the root `pom.xml`:
 - Name: `{service-name}`
 - Type: `module`
 - Dependencies: `astro` 5.x, `@astrojs/node` 9.x, `@aws-sdk/client-ssm`, `@opentelemetry/sdk-node`, `@opentelemetry/auto-instrumentations-node`, `@opentelemetry/exporter-trace-otlp-proto`, `@opentelemetry/api`, `pino`
-- Dev dependencies: `vitest` 4.x, `typescript`, `pino-pretty`
+- Dev dependencies: `vitest` 4.x, `pino-pretty`
 - Scripts:
   - `dev`: `NODE_OPTIONS='--import ./instrumentation.mjs' astro dev`
   - `build`: `astro build`
@@ -84,6 +84,27 @@ Create the root `pom.xml`:
 - Auto-instrumentations for Node.js
 - Only active when `OTEL_EXPORTER_OTLP_ENDPOINT` is set
 - Copy pattern from reference template
+- Import `resourceFromAttributes` from `@opentelemetry/resources` and semantic convention attributes:
+  ```javascript
+  import { resourceFromAttributes } from '@opentelemetry/resources';
+  import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+
+  const sdk = new NodeSDK({
+    resource: resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: process.env.SERVICE_NAME || '{service-name}',
+      [ATTR_SERVICE_VERSION]: process.env.npm_package_version,
+    }),
+    // ... rest of config
+  });
+  ```
+  Note: `@opentelemetry/resources` and `@opentelemetry/semantic-conventions` are transitive — no additional `package.json` entry needed.
+- Pass explicit overrides to `getNodeAutoInstrumentations` to control Pino and fs instrumentation:
+  ```javascript
+  getNodeAutoInstrumentations({
+    '@opentelemetry/instrumentation-pino': { enabled: true },
+    '@opentelemetry/instrumentation-fs': { enabled: false },
+  })
+  ```
 
 ### 3f. Library Layer (app/src/lib/)
 - `config.ts` — SSM Parameter Store configuration loader:
@@ -134,14 +155,21 @@ For each page/view in the specification:
 ### 3j. Static Assets (app/public/)
 - `favicon.svg` — custom SVG favicon
 
-### 3k. Containerfile
+### 3k. app/src/env.d.ts
+Create `app/src/env.d.ts` with:
+```typescript
+/// <reference types="astro/client" />
+```
+This is required by Astro for TypeScript type augmentation.
+
+### 3l. Containerfile
 - Multi-stage build:
   - Build stage: `node:20-alpine`, `npm ci`, `npm run build`
   - Runtime stage: `node:20-alpine`, copy `dist/`, `instrumentation.mjs`, install prod-only deps
 - Expose port 4321
 - CMD: `node --import ./instrumentation.mjs dist/server/entry.mjs`
 
-### 3l. Tests
+### 3m. Tests
 Co-located with source files using naming convention:
 - `src/lib/configUnitTest.ts` — SSM parameter loading, fallbacks, endpoint override
 - `src/lib/fetchWithRetryUnitTest.ts` — retry logic, timeout, logging
@@ -149,11 +177,11 @@ Co-located with source files using naming convention:
 - For each API route:
   - `src/pages/api/{resources}/indexUnitTest.ts` — GET/POST proxy, error forwarding, 502 on failure
   - `src/pages/api/{resources}/idUnitTest.ts` — GET/DELETE by ID, 404 forwarding, null body on 204
-  - `src/pages/api/{resources}/integrationTest.ts` — end-to-end flow (CRUD), error scenarios (409, 400, 404, 500)
+  - `src/pages/api/{resources}/{resources}ApiIntegrationTest.ts` — end-to-end flow (CRUD), error scenarios (409, 400, 404, 500) (e.g., `greetingsApiIntegrationTest.ts`)
 - Patterns:
   - `vi.mock()` for module mocking (config, logger, SSM)
   - `vi.stubGlobal('fetch', mockFetch)` for global fetch
-  - `vi.resetModules()` + dynamic `await import()` for fresh state per test
+  - `vi.resetModules()` + dynamic `await import()` for fresh state per test: `vi.resetModules()` is called inside `beforeEach` (not per individual test). The `mockSend` function is defined at module scope and reset with `mockSend.mockReset()` in `beforeEach`. Dynamic `await import()` is used inside each `it` block to get a fresh module instance after `resetModules()`.
   - Mock logger: `{ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }`
 
 ## Step 4: Scaffold the CDK Module
@@ -165,6 +193,16 @@ Co-located with source files using naming convention:
 ### 4b. cdk.json
 - Copy from reference template (same shared infrastructure references: vpcId, ecsClusterName, albName)
 - App command: `mvn -e -q compile exec:java`
+
+IMPORTANT: The cdk.json copied from the template contains hardcoded context values:
+  "vpcId": "vpc-0b3af2bd9b0c862d8"
+  "ecsClusterName": "ecs-cluster-cluster-dev"
+  "albName": "ecs-cluster-alb-dev"
+These MUST be replaced with the actual values from the target AWS environment:
+```bash
+VPC_ID=$(terraform -chdir=../sandbox-swe-dparra--terraform-${PRODUCT_NAME}--infra/environments/dev output -raw vpc_id)
+# ... update cdk.json accordingly
+```
 
 ### 4c. Value Objects
 - `AwsEnvironment.java` — record with validation (region, accountId, environmentName)
@@ -191,18 +229,65 @@ Co-located with source files using naming convention:
 ### 4f. {ServiceName}Stack.java
 The CDK stack creates resources in phases:
 1. **Lookup** — VPC (by ID), ECS Cluster (by name), ALB (by tag), HTTP Listener (port 80)
-2. **ECR Repository** — image scanning enabled, mutable tags, RemovalPolicy.DESTROY
+2. **ECR Repository** — image scanning enabled, mutable tags, RemovalPolicy.DESTROY, and `emptyOnDelete(true)` to allow `cdk destroy` to succeed when images exist:
+   ```java
+   Repository.Builder.create(this, "EcrRepository")
+       // ...
+       .removalPolicy(RemovalPolicy.DESTROY)
+       .emptyOnDelete(true)   // required for cdk destroy to succeed when images exist
+       .build();
+   ```
 3. **CloudWatch Log Group** — `/ecs/{service-name}`, 30-day retention
 4. **IAM Roles**:
    - Task Execution Role: `AmazonECSTaskExecutionRolePolicy`
    - Task Role: `ssm:GetParameter` on `/{service-name}/*` parameters only
 5. **SSM Parameters** — seed configuration parameters (description, backend URL, timeout, retry count, log level, rate limit)
 6. **Security Group** — allow inbound from VPC CIDR on container port (4321)
-7. **ALB Target Group** — HTTP on port 4321, health check at `/api/health`
+7. **ALB Target Group** — HTTP on port 4321, full health check configuration:
+   ```java
+   HealthCheck.builder()
+       .path(config.getRoutingConfig().healthCheckPath())
+       .healthyThresholdCount(2)
+       .unhealthyThresholdCount(3)
+       .timeout(Duration.seconds(5))
+       .interval(Duration.seconds(30))
+       .healthyHttpCodes("200")
+       .build()
+   ```
 8. **ALB Listener Rule** — path pattern, unique priority
 9. **ECS Task Definition** — Fargate, 256 CPU / 512 MiB, env vars: HOST, PORT, SERVICE_NAME, AWS_REGION, OTEL_SERVICE_NAME, NODE_ENV
-10. **ECS Fargate Service** — public subnets, desired count 0
-11. **Outputs** — ECR repo URI, service URL, ECS service name
+10. **ECS Fargate Service** — public subnets, desired count 0, with `healthCheckGracePeriod` to allow Astro time to initialise:
+    ```java
+    FargateService.Builder.create(this, "EcsService")
+        // ...
+        .healthCheckGracePeriod(Duration.seconds(60))  // allow Astro time to initialise
+        .build();
+    ```
+    After creating the `FargateService`, attach it to the target group so the ALB routes traffic to the service:
+    ```java
+    ecsService.attachToApplicationTargetGroup(targetGroup);
+    ```
+11. **Resource Tagging** — after creating each major resource, tag it with Name and Environment:
+    ```java
+    Tags.of(ecrRepository).add("Name", serviceName + "-ecr");
+    Tags.of(ecrRepository).add("Environment", config.getAwsEnvironment().environmentName());
+    // Apply the same pattern to: logGroup, taskRole, executionRole, securityGroup, targetGroup, ecsService
+    ```
+12. **Outputs** — ECR repo URI, service URL, ECS service name, plus:
+    ```java
+    new CfnOutput(this, "EcsTaskDefinitionArn", CfnOutputProps.builder()
+        .value(taskDefinition.getTaskDefinitionArn())
+        .description("ECS Task Definition ARN")
+        .build());
+    new CfnOutput(this, "TargetGroupArn", CfnOutputProps.builder()
+        .value(targetGroup.getTargetGroupArn())
+        .description("ALB Target Group ARN")
+        .build());
+    new CfnOutput(this, "CloudWatchLogGroup", CfnOutputProps.builder()
+        .value(logGroup.getLogGroupName())
+        .description("CloudWatch Log Group name")
+        .build());
+    ```
 
 Key differences from microservice stack (NO):
 - No RDS / database
@@ -214,6 +299,10 @@ Key differences from microservice stack (NO):
 ### 4g. Tests
 - `{ServiceName}StackTest.java` — JUnit 5 with CDK `Template` assertions:
   - Verify all expected resources: ECR, Log Group, IAM roles, SG, Target Group, Task Definition, ECS Service, Listener Rule, SSM Parameters
+  - Verify SSM parameter count:
+    ```java
+    template.resourceCountIs("AWS::SSM::Parameter", 6); // all six SSM parameters seeded
+    ```
   - Verify config builder defaults
   - Verify NO backend resources (RDS, SQS, EventBridge, AppConfig, DynamoDB)
 
@@ -224,6 +313,12 @@ Key differences from microservice stack (NO):
 - `deploy-local-app.sh` — local dev orchestrator (start/stop/restart/logs/status/aws/clean)
 - `deploy-infra.sh` — CDK bootstrap + deploy (supports `--docker` flag for macOS ARM64)
 - `deploy-app.sh` — `npm ci` + `npm run build` + Docker build (linux/amd64) + ECR push + ECS force-new-deployment
+
+  IMPORTANT: deploy-app.sh defaults to ECS_CLUSTER=ecs-cluster-cluster-dev.
+  After scaffolding, update this default to match the actual ECS cluster name
+  for the target environment, or override at runtime:
+    ECS_CLUSTER=my-cluster ./deploy-app.sh
+
 - `destroy-infra.sh` — clean ECR images + CDK destroy
 - `Dockerfile.cdk` — workaround for JSII on macOS ARM64 (eclipse-temurin:21-jdk + Node.js 20 + Maven + CDK CLI)
 - `.devcontainer/devcontainer.json` — Codespaces config with Node.js 20, Java 21, Maven, AWS CLI, CDK

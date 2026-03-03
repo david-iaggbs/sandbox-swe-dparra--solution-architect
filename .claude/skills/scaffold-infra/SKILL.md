@@ -33,6 +33,13 @@ cd ${REPO_NAME}
 git checkout -b main
 ```
 
+After cloning, remove the template's own skill files — they belong in the solution-architect repo only:
+
+```bash
+# Remove the template's own skill files — they belong in the solution-architect repo only
+rm -rf .claude/
+```
+
 If the repo already exists, stop and inform the user with the repo URL.
 
 ---
@@ -1079,6 +1086,58 @@ jobs:
 
 ---
 
+## Step 5a — Fix Template Variable Descriptions and Generate README
+
+After all module files are written, run the following to overwrite any residual template values that may have been carried over from the reference template repo:
+
+```bash
+# Fix variable descriptions and defaults across all modules and root
+find . -name "variables.tf" -exec sed -i '' \
+  -e "s/description = \"backend-template--infra\"/description = \"Project name used as resource naming prefix\"/g" \
+  -e "s/description = \"Development\"/description = \"Environment name (e.g., dev, staging, prod)\"/g" \
+  -e "s/default *= *\"ecs-cluster\"/default = \"${PROJECT_NAME}\"/g" \
+  {} \;
+
+# Fix terraform.tfvars project_name value
+sed -i '' "s/project_name *= *\"ecs-cluster\"/project_name = \"${PROJECT_NAME}\"/" environments/dev/terraform.tfvars
+```
+
+Then generate a `README.md` for the scaffolded repo:
+
+```bash
+cat > README.md << EOF
+# ${PROJECT_NAME}--infra
+
+Terraform ECS Fargate infrastructure for the **${PROJECT_NAME}** product domain.
+
+## Modules
+
+| Module | Purpose |
+|--------|---------|
+| vpc | VPC, subnets, NAT gateway, security groups |
+| iam | ECS execution and task IAM roles |
+| alb | Application Load Balancer and target group |
+| ecs | ECS cluster, task definition, Fargate service |
+| eventbridge | EventBridge custom bus and SQS target policy |
+
+## Usage
+
+\`\`\`bash
+cd environments/dev
+terraform init
+terraform plan
+terraform apply
+\`\`\`
+
+## Variables
+
+See \`variables.tf\` in each module for the full list of inputs.
+See \`environments/dev/terraform.tfvars\` for the default dev values.
+EOF
+```
+
+---
+
 ## Step 6 — Validate
 
 Run from inside the cloned repo directory:
@@ -1124,9 +1183,15 @@ Resource naming convention: ${PROJECT_NAME}-<resource-type>-<environment>
 
 Next steps:
   1. Configure an S3 backend in main.tf for remote state
-  2. Update container_image in environments/dev/terraform.tfvars (currently nginx:latest)
+  2. Note: container_image is defined with a default of "nginx:latest" in modules/ecs/variables.tf.
+     To override it, add container_image = "<your-image-uri>" to environments/dev/terraform.tfvars
+     and declare it in the root variables.tf.
   3. Run: AWS_PROFILE=<your-profile> terraform apply -var-file="environments/dev/terraform.tfvars"
   4. Add CLAUDE_CODE_OAUTH_TOKEN secret to the GitHub repo for Claude Code Actions
+
+Note: The template includes a designs/ directory with a deployment draw.io diagram.
+This has been kept in the scaffolded repo. Update designs/deployment-diagram.drawio
+in draw.io to reflect the actual infrastructure for ${PROJECT_NAME}.
 ```
 
 ---

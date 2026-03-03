@@ -1,7 +1,7 @@
 ---
 name: scaffold-design
 description: Scaffold a new product architecture design repo (arc42 + C4 + ADR + draw.io) or manage an existing one — create ADRs, update diagrams, register products
-argument-hint: scaffold <product-name> [description] | new-adr <title> [--repo <product-name>] | update-section <03-12> [--adr <NNNN>] [--repo <product-name>]
+argument-hint: scaffold <product-name> [description] | new-adr <title> [--repo <product-name>] | update-section <01-12> [--adr <NNNN>] [--repo <product-name>]
 ---
 
 You are a solution architect that scaffolds and manages product architecture design repositories following the `david-iaggbs` workspace standard (arc42 + C4 + ADR + draw.io).
@@ -50,7 +50,7 @@ Derived values:
 ### Mode: `update-section`
 
 Extract:
-- `SECTION_NUM` (required): two-digit arc42 section number to update, e.g. `03`, `04`, `06`. Must be `03`–`12`.
+- `SECTION_NUM` (required): two-digit arc42 section number to update, e.g. `03`, `04`, `06`. Must be `01`–`12`.
 - `--adr <NNNN>` (optional): zero-padded ADR number that drives this update, e.g. `0003`. Used to load context from the ADR's **Affects** and **Context** fields.
 - `--repo <product-name>` (optional): target product repo. If omitted, infer from the current working directory.
 
@@ -124,7 +124,6 @@ Copy all 12 arc42 templates from the reference, **substituting placeholders**:
 
 ```bash
 find Documents/ -name "*.md" -exec sed -i '' \
-  -e "s/{PRODUCT NAME}/${PRODUCT_TITLE}/g" \
   -e "s/{PRODUCT}/${PRODUCT_TITLE}/g" \
   -e "s/{product}/${PRODUCT_NAME}/g" \
   {} \;
@@ -141,7 +140,6 @@ Substitute placeholders in `adr/README.md`:
 
 ```bash
 sed -i '' \
-  -e "s/{PRODUCT NAME}/${PRODUCT_TITLE}/g" \
   -e "s/{PRODUCT}/${PRODUCT_TITLE}/g" \
   adr/README.md
 ```
@@ -155,6 +153,12 @@ cp "$TEMPLATE_DIR/docs/templates/diagrams/c1-system-context.drawio" Diagrams/Log
 cp "$TEMPLATE_DIR/docs/templates/diagrams/c2-containers.drawio"     Diagrams/Logical/c2-containers.drawio
 cp "$TEMPLATE_DIR/docs/templates/diagrams/c3-components.drawio"     Diagrams/Logical/c3-components.drawio
 cp "$TEMPLATE_DIR/docs/templates/diagrams/deployment.drawio"        Diagrams/Physical/deployment.drawio
+
+# Rename to the primary service name per workspace convention
+# (if the product has multiple services, create one c3-{service}.drawio per service)
+mv Diagrams/Logical/c3-components.drawio Diagrams/Logical/c3-${PRODUCT_NAME}.drawio
+
+cp "$TEMPLATE_DIR/docs/templates/diagrams/README.md" Diagrams/README.md
 ```
 
 Create a placeholder README in `Diagrams/Sequences/`:
@@ -179,7 +183,7 @@ Copy from the template and substitute all placeholders:
 cp "$TEMPLATE_DIR/docs/templates/arc42/README.md" README.md
 sed -i '' \
   -e "s/{PRODUCT NAME}/${PRODUCT_TITLE}/g" \
-  -e "s/{One-sentence description.*}/{${DESCRIPTION}}/g" \
+  -e "s/{One-sentence description of what this product does and the problem it solves.}/${DESCRIPTION}/g" \
   README.md
 ```
 
@@ -278,10 +282,15 @@ Structure scaffolded:
   Documents/     — arc42 sections 01–12 (all placeholders substituted)
   adr/           — ADR index (adr/README.md) + blank template (NNNN-template.md)
   Diagrams/
-    Logical/     — c1-system-context.drawio, c2-containers.drawio, c3-components.drawio
+    Logical/     — c1-system-context.drawio, c2-containers.drawio, c3-${PRODUCT_NAME}.drawio
     Physical/    — deployment.drawio
     Sequences/   — README.md (Mermaid diagrams go inline in §06)
+  Diagrams/README.md — diagram conventions and AWS colour palette reference
   CHANGELOG.md   — architecture evolution milestone log
+
+Note: Documents/05-building-blocks.md and Documents/06-runtime-view.md contain
+additional {lowercase} content placeholders ({service-1}, {entities}, {event-name}, etc.)
+that require human editing — these are intentional and not substituted automatically.
 
 Product registered in: https://github.com/david-iaggbs/sandbox-swe-dparra--solution-architect
 
@@ -348,17 +357,30 @@ TEMPLATE_DIR="/tmp/scaffold-design-template"
 [ -d "$TEMPLATE_DIR" ] || git clone --depth 1 https://github.com/david-iaggbs/sandbox-swe-dparra--designs "$TEMPLATE_DIR"
 ```
 
+Read the worked example to understand what a well-filled ADR looks like:
+
+```bash
+# Read the worked example to understand what a well-filled ADR looks like
+cat "$TEMPLATE_DIR/docs/examples/online-shop/adr/0001-example.md"
+```
+
 Copy and populate:
 
 ```bash
 cp "$TEMPLATE_DIR/docs/templates/adr/NNNN-template.md" "$ADR_FILE"
 ```
 
-In the new ADR file, substitute:
-- `NNNN` → `$NEXT_ADR_NUM` (e.g., `0003`)
-- `{TITLE}` or the title placeholder → `ADR_TITLE`
-- `{DATE}` → today's date in `YYYY-MM-DD` format
-- Leave all other placeholders for the human to fill in
+In the new ADR file, substitute using this sed command:
+
+```bash
+sed -i '' \
+  -e "s/NNNN/${NEXT_ADR_NUM}/g" \
+  -e "s/{Title in imperative form}/${ADR_TITLE}/g" \
+  -e "s/YYYY-MM-DD/${TODAY_DATE}/g" \
+  "$ADR_FILE"
+```
+
+Leave all other placeholders for the human to fill in.
 
 Read the created file and display its full contents to the user.
 
@@ -428,6 +450,8 @@ Map `SECTION_NUM` to the correct filename:
 
 | SECTION_NUM | File |
 |-------------|------|
+| 01 | Documents/01-requirements.md |
+| 02 | Documents/02-constraints.md |
 | 03 | Documents/03-context-scope.md |
 | 04 | Documents/04-solution-strategy.md |
 | 05 | Documents/05-building-blocks.md |
@@ -475,6 +499,15 @@ Current content of {SECTION_FILE}:
   Contains diagrams: yes/no (check for ```mermaid blocks)
   draw.io reference: yes/no (check for .drawio link)
 ```
+
+Also read the relevant workspace guides before making changes:
+```
+  cat "$TEMPLATE_DIR/docs/c4-guide.md"        # for C4 diagram notation and AWS colour palette
+  cat "$TEMPLATE_DIR/docs/mermaid-guide.md"   # for Mermaid syntax conventions
+  cat "$TEMPLATE_DIR/docs/arc42-guide.md"     # for arc42 section purpose and content rules
+```
+
+(Only clone the template dir if it does not already exist locally from Step 1.)
 
 ### Step V — Identify Paired Diagrams
 
@@ -581,7 +614,7 @@ git diff --cached
 1. **Never add `allowed-tools`** to YAML frontmatter — it is unsupported and causes warnings.
 2. **Repo naming** follows `sandbox-swe-dparra--{product-name}--design` exactly. No deviations.
 3. **Template source is always cloned fresh** from `david-iaggbs/sandbox-swe-dparra--designs` — do not use stale local copies.
-4. **Placeholder substitution**: replace ALL occurrences of `{PRODUCT NAME}`, `{PRODUCT}`, `{product}` in copied templates. Read the result to verify before committing.
+4. **Placeholder substitution**: replace ALL occurrences of `{PRODUCT}`, `{product}` in copied templates. Read the result to verify before committing.
 5. **draw.io files are copied as-is** — they contain `{placeholder}` shapes by design; these are for humans to replace with the GUI.
 6. **ADR numbers are always 4 digits, zero-padded** (`0001`, `0002`, …). Never use 3-digit or unnumbered ADRs.
 7. **Never delete an ADR**. If superseding, only update the `Status` line of the old ADR.

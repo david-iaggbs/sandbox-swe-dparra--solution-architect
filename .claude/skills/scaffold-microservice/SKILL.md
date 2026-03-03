@@ -53,6 +53,39 @@ Clone the `app/` structure from the reference template, adapting:
   - If audit logging: spring-cloud-aws-starter-dynamodb
   - Always: spring-cloud-aws-starter, parameter-store, secrets-manager, appconfigdata
   - Always: opentelemetry, testcontainers (test), testcontainers-postgresql (test), testcontainers-localstack (test), awaitility (test)
+  - Always include in `dependencies`:
+    ```xml
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-devtools</artifactId>
+        <scope>runtime</scope>
+        <optional>true</optional>
+    </dependency>
+
+    <!-- Spring AI MCP Server -->
+    <dependency>
+        <groupId>org.springframework.ai</groupId>
+        <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+    </dependency>
+    ```
+  - Always include in `dependencyManagement`:
+    ```xml
+    <dependency>
+        <groupId>org.springframework.ai</groupId>
+        <artifactId>spring-ai-bom</artifactId>
+        <version>1.0.1</version>
+        <type>pom</type>
+        <scope>import</scope>
+    </dependency>
+    ```
+  - Always include in test dependencies:
+    ```xml
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <scope>test</scope>
+    </dependency>
+    ```
 
 ### 3b. Application Entry Point
 - `{ServiceName}Application.java` with `@SpringBootApplication`, `@EnableScheduling`, `@EnableConfigurationProperties`
@@ -63,6 +96,16 @@ Clone the `app/` structure from the reference template, adapting:
 - `DynamoDbProperties.java` — if DynamoDB is needed
 - `DynamoDbConfig.java` — if DynamoDB is needed, with `@ConditionalOnProperty`
 - `OpenApiConfig.java` — with service-specific title and description
+- `McpServerConfig.java` — always include, registers service tools for MCP:
+  ```java
+  @Configuration
+  public class McpServerConfig {
+      @Bean
+      public ToolCallbackProvider {entityName}Tools({EntityName}Service service) {
+          return MethodToolCallbackProvider.builder().toolObjects(service).build();
+      }
+  }
+  ```
 
 ### 3d. Entity Layer
 For each entity defined in the specification:
@@ -84,6 +127,15 @@ For each entity:
 - `Update{EntityName}Request.java` — record with optional fields
 - `{EntityName}Dto.java` — response record with all fields + computed fields
 - `ErrorResponse.java` — standard error record (copy from template)
+- `{EntityName}MessageRequest.java` — SQS event message envelope:
+  ```java
+  // SQS event message envelope
+  public record {EntityName}MessageRequest(
+      String action,   // e.g., "CREATED", "UPDATED", "DELETED"
+      UUID {entityName}Id,
+      String payload
+  ) {}
+  ```
 
 ### 3g. Exception Layer
 For each entity:
@@ -112,13 +164,59 @@ For each entity:
 - `{EntityName}EventController.java` — if consuming events, with:
   - `@ConditionalOnProperty(name = "app.sqs.enabled")`
   - `@SqsListener` with EventBridge envelope parsing
+- `GlobalExceptionHandler.java` — always include, handles standard exceptions:
+  ```java
+  @RestControllerAdvice
+  public class GlobalExceptionHandler {
+      @ExceptionHandler({EntityName}NotFoundException.class)
+      public ResponseEntity<ErrorResponse> handle{EntityName}NotFound({EntityName}NotFoundException ex) {
+          return ResponseEntity.status(HttpStatus.NOT_FOUND)
+              .body(new ErrorResponse(ex.getMessage()));
+      }
+      @ExceptionHandler(MethodArgumentNotValidException.class)
+      public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
+          String message = ex.getBindingResult().getFieldErrors().stream()
+              .map(FieldError::getDefaultMessage).collect(Collectors.joining(", "));
+          return ResponseEntity.badRequest().body(new ErrorResponse(message));
+      }
+      @ExceptionHandler(Exception.class)
+      public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
+          return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+              .body(new ErrorResponse("An unexpected error occurred"));
+      }
+  }
+  ```
+- `{EntityName}McpController.java` — always include, exposes entity operations as MCP tools:
+  - Annotated `@Service` (not `@RestController`)
+  - Contains `@Tool`-annotated methods mirroring the REST CRUD operations:
+    - `get{EntityName}s()`, `get{EntityName}ById(UUID id)`, `create{EntityName}(...)`, `update{EntityName}(UUID id, ...)`, `delete{EntityName}(UUID id)`
+  - Each method carries a descriptive `description` attribute on the `@Tool` annotation
 
 ### 3j. Configuration Files
-- `application.yml` — copy template, adjust `spring.application.name`, `app.message`, table names
+- `application.yml` — copy template, adjust `spring.application.name`, `app.message`, table names. Always add the MCP server block:
+  ```yaml
+  spring:
+    ai:
+      mcp:
+        server:
+          name: ${SERVICE_NAME}
+          version: 0.0.1
+  ```
 - `application-aws.yml` — copy template, adjust DynamoDB table name, SQS queue name
 - `application-localstack.yml` — copy template, adjust names
 - `application-codespaces.yml` — copy template, adjust names
-- `application-test.yml` — copy template, adjust test message
+- `application-test.yml` — must disable ALL AWS config imports so tests use only Testcontainers via `@DynamicPropertySource`:
+  ```yaml
+  spring:
+    config:
+      import: ""    # disable AWS Parameter Store / AppConfig / Secrets Manager imports
+    cloud:
+      aws:
+        credentials:
+          instance-profile: false
+        region:
+          static: eu-west-1
+  ```
 - `logback-spring.xml` — copy template, adjust package name
 
 ### 3k. Containerfile
@@ -140,12 +238,15 @@ For each entity:
 - `AbstractRepositoryTest.java` — base for `@DataJpaTest` tests:
   - `@ActiveProfiles("test")`
   - `@DynamicPropertySource` configuring PostgreSQL URL/credentials only (no LocalStack needed)
+  - **Note**: This abstract base class does NOT carry `@DataJpaTest`. That annotation belongs on the concrete `{EntityName}RepositoryIntegrationTest.java` class that extends it.
 
 **Test classes for each entity:**
 - `{EntityName}RestControllerUnitTest.java` — Mockito BDD with `MockMvcBuilders.standaloneSetup()`
 - `{EntityName}RestControllerIntegrationTest.java` — extends `AbstractIntegrationTest`, `@AutoConfigureMockMvc`
 - `Default{EntityName}ServiceUnitTest.java` — Mockito BDD, test service logic
-- `{EntityName}RepositoryIntegrationTest.java` — extends `AbstractRepositoryTest`
+- `{EntityName}RepositoryIntegrationTest.java` — extends `AbstractRepositoryTest`, carries `@DataJpaTest`
+- `{EntityName}McpControllerUnitTest.java` — unit test mocking the service, verifying `@Tool` method delegation
+- `{EntityName}McpControllerIntegrationTest.java` — integration test extending `AbstractIntegrationTest`
 - `application-test.yml` under test resources (disable AWS config imports, set test defaults)
 
 ## Step 4: Scaffold the CDK Module
@@ -159,7 +260,8 @@ Clone the `cdk/` structure from the reference template, adapting:
 - Copy from template (same shared infrastructure references)
 
 ### 4c. Value Objects
-- Copy all records from template: `AwsEnvironment`, `NetworkConfig`, `ContainerConfig`, `RoutingConfig`, `DatabaseConfig`
+- Copy all classes from template: `AwsEnvironment`, `NetworkConfig`, `ContainerConfig`, `RoutingConfig`, `DatabaseConfig`
+- `AwsEnvironment` is a Java record; `NetworkConfig`, `ContainerConfig`, `RoutingConfig`, `DatabaseConfig` are standard Java classes with builder/constructor patterns.
 
 ### 4d. InfrastructureConfig.java
 - Copy from template, adjust `serviceName` default
@@ -177,8 +279,13 @@ Clone the `cdk/` structure from the reference template, adapting:
   - Stack class name
   - Service name
   - ALB listener rule priority (unique per service)
-  - Path pattern (e.g., `/api/v1/orders/*`)
-  - Environment variables (AppConfig IDs, SQS queue, DynamoDB table)
+  - Path patterns: include the API path (e.g., `/api/v1/orders/*`), `/actuator/*`, and `/sse` (for MCP server-sent events)
+  - Environment variables in TaskDefinition — always include both queue URL and name:
+    ```java
+    environmentVars.put("AWS_SQS_QUEUE_URL", eventQueue.getQueueUrl());
+    environmentVars.put("AWS_SQS_QUEUE_NAME", eventQueue.getQueueName());
+    ```
+  - Also set: AppConfig IDs, DynamoDB table name
 
 ### 4g. Tests
 - `{ServiceName}StackTest.java` — Template assertions for resource existence and properties
@@ -190,6 +297,33 @@ Clone the `cdk/` structure from the reference template, adapting:
 - `deploy-infra.sh` — copy from template
 - `deploy-app.sh` — copy from template, adjust ECR repo name
 - `destroy-infra.sh` — copy from template
+- `Dockerfile.cdk` — Docker image for running CDK on macOS ARM64 (workaround for JSII issues):
+  ```dockerfile
+  FROM eclipse-temurin:21-jdk
+  RUN apt-get update && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+      apt-get install -y nodejs maven && npm install -g aws-cdk
+  WORKDIR /app
+  ```
+- `docker-cdk.sh` — runs CDK via Docker (workaround for macOS ARM64 JSII issues):
+  ```bash
+  #!/usr/bin/env bash
+  docker build -f Dockerfile.cdk -t ${SERVICE_NAME}-cdk .
+  docker run --rm \
+    -v "$(pwd):/app" \
+    -v "$HOME/.aws:/root/.aws:ro" \
+    -e CDK_DEFAULT_ACCOUNT="$(aws sts get-caller-identity --query Account --output text)" \
+    -e CDK_DEFAULT_REGION="${AWS_DEFAULT_REGION:-eu-west-1}" \
+    ${SERVICE_NAME}-cdk cdk "$@"
+  ```
+- `run-localstack.sh` — standalone LocalStack startup helper:
+  ```bash
+  #!/usr/bin/env bash
+  docker run --rm -d \
+    --name localstack \
+    -p 4566:4566 \
+    -e SERVICES=sqs,dynamodb,ssm,secretsmanager \
+    localstack/localstack:latest
+  ```
 - `.gitignore` — standard Java + CDK ignores
 - `README.md` — service name, description, API endpoints, quick start
 
