@@ -99,6 +99,7 @@ Do NOT write an ADR for:
 | ADR | Title | Status | Categories | Date |
 |-----|-------|--------|------------|------|
 | [ADR-0001](0001-introduce-minesweeper-product-domain.md) | Introduce Minesweeper Product Domain | Accepted | product, infra, service, ui | 2026-03-01 |
+| [ADR-0002](0002-introduce-booking-portal-ui.md) | Introduce booking-portal-ui as the customer-facing Astro SSR frontend for the booking product | Accepted | product, ui, initiative | 2026-03-16 |
 
 > Keep this index up to date. Add a row every time a new ADR is created or its status changes.
 
